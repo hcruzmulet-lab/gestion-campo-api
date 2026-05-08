@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="GestorCampo.API/GestorCampo.API.csproj" />
+  <Project Path="GestorCampo.Application/GestorCampo.Application.csproj" />
+  <Project Path="GestorCampo.Domain/GestorCampo.Domain.csproj" />
+  <Project Path="GestorCampo.Infrastructure/GestorCampo.Infrastructure.csproj" />
+  <Project Path="GestorCampo.Tests/GestorCampo.Tests.csproj" />
+</Solution>
