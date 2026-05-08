@@ -31,6 +31,7 @@
     <ProjectReference Include="..\GestorCampo.Application\GestorCampo.Application.csproj" />
     <ProjectReference Include="..\GestorCampo.Infrastructure\GestorCampo.Infrastructure.csproj" />
     <ProjectReference Include="..\GestorCampo.API\GestorCampo.API.csproj" />
+    <ProjectReference Include="..\GestorCampo.Domain\GestorCampo.Domain.csproj" />
   </ItemGroup>
 
 </Project>
