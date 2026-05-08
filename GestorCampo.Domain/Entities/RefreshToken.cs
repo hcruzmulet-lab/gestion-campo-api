@@ -13,5 +13,5 @@ public class RefreshToken : BaseEntity
 
     public bool IsExpired => DateTime.UtcNow >= ExpiresAt;
     public bool IsRevoked => RevokedAt.HasValue;
-    public new bool IsActive => !IsRevoked && !IsExpired;
+    public bool IsUsable => !IsRevoked && !IsExpired;
 }
