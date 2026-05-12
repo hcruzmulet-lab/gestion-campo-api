@@ -11,14 +11,17 @@ public class AppDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
+    public DbSet<Client> Clients => Set<Client>();
+    public DbSet<Product> Products => Set<Product>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-        // Global query filter: exclude soft-deleted records
         modelBuilder.Entity<User>().HasQueryFilter(u => u.DeletedAt == null);
         modelBuilder.Entity<RefreshToken>().HasQueryFilter(rt => rt.DeletedAt == null);
+        modelBuilder.Entity<Client>().HasQueryFilter(c => c.DeletedAt == null);
+        modelBuilder.Entity<Product>().HasQueryFilter(p => p.DeletedAt == null);
 
         base.OnModelCreating(modelBuilder);
     }

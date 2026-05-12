@@ -1,4 +1,5 @@
 using GestorCampo.Domain.Entities;
+using GestorCampo.Domain.Enums;
 using GestorCampo.Domain.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,5 +34,34 @@ public class UserRepository : IUserRepository
     {
         _db.Users.Update(user);
         await _db.SaveChangesAsync(ct);
+    }
+
+    public Task<bool> EmailExistsAsync(string email, CancellationToken ct = default) =>
+        _db.Users.AnyAsync(u => u.Email == email.ToLowerInvariant(), ct);
+
+    public async Task<(List<User> items, int totalCount)> GetListAsync(
+        int page, int pageSize,
+        UserRole? role, bool? isActive, string? search,
+        Guid? supervisorFilter, CancellationToken ct = default)
+    {
+        var query = _db.Users.AsQueryable();
+
+        if (role.HasValue)
+            query = query.Where(u => u.Role == role.Value);
+        if (isActive.HasValue)
+            query = query.Where(u => u.IsActive == isActive.Value);
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(u => u.Name.Contains(search) || u.Email.Contains(search));
+        if (supervisorFilter.HasValue)
+            query = query.Where(u => u.SupervisorId == supervisorFilter.Value);
+
+        var totalCount = await query.CountAsync(ct);
+        var items = await query
+            .OrderBy(u => u.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return (items, totalCount);
     }
 }
