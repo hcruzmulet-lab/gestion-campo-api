@@ -13,6 +13,10 @@ public class AppDbContext : DbContext
     public DbSet<OtpCode> OtpCodes => Set<OtpCode>();
     public DbSet<Client> Clients => Set<Client>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<Visit> Visits => Set<Visit>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderLine> OrderLines => Set<OrderLine>();
+    public DbSet<TrackingPoint> TrackingPoints => Set<TrackingPoint>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,6 +26,9 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<RefreshToken>().HasQueryFilter(rt => rt.DeletedAt == null);
         modelBuilder.Entity<Client>().HasQueryFilter(c => c.DeletedAt == null);
         modelBuilder.Entity<Product>().HasQueryFilter(p => p.DeletedAt == null);
+        modelBuilder.Entity<Visit>().HasQueryFilter(v => v.DeletedAt == null);
+        modelBuilder.Entity<Order>().HasQueryFilter(o => o.DeletedAt == null);
+        // TrackingPoint: no soft-delete filter (append-only log)
 
         base.OnModelCreating(modelBuilder);
     }
