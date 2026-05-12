@@ -5,6 +5,7 @@ namespace GestorCampo.Domain.Interfaces.Repositories;
 public interface IProductRepository
 {
     Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default);
+    Task<Product?> GetByExternalIdAsync(string externalId, CancellationToken ct = default);
     Task<bool> CodeExistsAsync(string code, CancellationToken ct = default);
     Task<(List<Product> items, int totalCount)> GetListAsync(
         int page, int pageSize,
