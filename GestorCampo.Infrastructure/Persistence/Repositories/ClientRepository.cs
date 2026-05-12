@@ -13,6 +13,9 @@ public class ClientRepository : IClientRepository
     public Task<Client?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.Clients.FirstOrDefaultAsync(c => c.Id == id, ct);
 
+    public Task<Client?> GetByExternalIdAsync(string externalId, CancellationToken ct = default) =>
+        _db.Clients.FirstOrDefaultAsync(c => c.ExternalId == externalId, ct);
+
     public Task<bool> TaxIdExistsAsync(string taxId, CancellationToken ct = default) =>
         _db.Clients.AnyAsync(c => c.TaxId == taxId, ct);
 

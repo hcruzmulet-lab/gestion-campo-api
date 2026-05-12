@@ -13,6 +13,9 @@ public class ProductRepository : IProductRepository
     public Task<Product?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.Products.FirstOrDefaultAsync(p => p.Id == id, ct);
 
+    public Task<Product?> GetByExternalIdAsync(string externalId, CancellationToken ct = default) =>
+        _db.Products.FirstOrDefaultAsync(p => p.ExternalId == externalId, ct);
+
     public Task<bool> CodeExistsAsync(string code, CancellationToken ct = default) =>
         _db.Products.AnyAsync(p => p.Code == code, ct);
 
