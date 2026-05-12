@@ -195,4 +195,136 @@ public class UserServiceTests
 
         _userRepo.Verify(r => r.GetListAsync(1, 100, null, null, null, null, default), Times.Once);
     }
+
+    // ---- Update ----
+
+    [Fact]
+    public async Task Update_NotFound_ReturnsFail()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
+
+        var result = await _sut.UpdateAsync(Guid.NewGuid(), new UpdateUserRequest(), Guid.NewGuid(), UserRole.SuperAdmin);
+
+        result.Succeeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Update_SupervisorUpdatesUnownedVendor_ReturnsFail()
+    {
+        var supervisorId = Guid.NewGuid();
+        var vendor = BuildUser(supervisorId: Guid.NewGuid()); // different supervisor
+        _userRepo.Setup(r => r.GetByIdAsync(vendor.Id, default)).ReturnsAsync(vendor);
+
+        var result = await _sut.UpdateAsync(vendor.Id, new UpdateUserRequest { Name = "New" }, supervisorId, UserRole.Supervisor);
+
+        result.Succeeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Update_ValidData_UpdatesNameAndCallsRepository()
+    {
+        var user = BuildUser();
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var result = await _sut.UpdateAsync(user.Id, new UpdateUserRequest { Name = "Updated" }, Guid.NewGuid(), UserRole.SuperAdmin);
+
+        result.Succeeded.Should().BeTrue();
+        result.Data!.Name.Should().Be("Updated");
+        _userRepo.Verify(r => r.UpdateAsync(It.Is<User>(u => u.Name == "Updated"), default), Times.Once);
+    }
+
+    // ---- Delete ----
+
+    [Fact]
+    public async Task Delete_OwnAccount_ReturnsFail()
+    {
+        var userId = Guid.NewGuid();
+        var user = new User { Id = userId, Name = "A", Email = "a@b.com", PasswordHash = "h", Role = UserRole.SuperAdmin };
+        _userRepo.Setup(r => r.GetByIdAsync(userId, default)).ReturnsAsync(user);
+
+        var result = await _sut.DeleteAsync(userId, userId);
+
+        result.Succeeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Delete_ValidUser_SoftDeletesAndDeactivates()
+    {
+        var user = BuildUser();
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var result = await _sut.DeleteAsync(user.Id, Guid.NewGuid());
+
+        result.Succeeded.Should().BeTrue();
+        _userRepo.Verify(r => r.UpdateAsync(
+            It.Is<User>(u => u.DeletedAt.HasValue && !u.IsActive), default), Times.Once);
+    }
+
+    // ---- Block / Unblock ----
+
+    [Fact]
+    public async Task Block_ValidUser_SetsLockedUntilFarFuture()
+    {
+        var user = BuildUser();
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var result = await _sut.BlockAsync(user.Id);
+
+        result.Succeeded.Should().BeTrue();
+        _userRepo.Verify(r => r.UpdateAsync(
+            It.Is<User>(u => u.LockedUntil > DateTime.UtcNow.AddYears(99)), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Block_NotFound_ReturnsFail()
+    {
+        _userRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((User?)null);
+
+        var result = await _sut.BlockAsync(Guid.NewGuid());
+
+        result.Succeeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Unblock_ValidUser_ClearsLockAndResetAttempts()
+    {
+        var user = BuildUser();
+        user.LockedUntil = DateTime.UtcNow.AddYears(100);
+        user.FailedAttempts = 5;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var result = await _sut.UnblockAsync(user.Id);
+
+        result.Succeeded.Should().BeTrue();
+        _userRepo.Verify(r => r.UpdateAsync(
+            It.Is<User>(u => u.LockedUntil == null && u.FailedAttempts == 0), default), Times.Once);
+    }
+
+    // ---- Toggle2FA ----
+
+    [Fact]
+    public async Task Toggle2FA_WhenDisabled_Enables()
+    {
+        var user = BuildUser();
+        user.TwoFaEnabled = false;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var result = await _sut.Toggle2FaAsync(user.Id);
+
+        result.Succeeded.Should().BeTrue();
+        _userRepo.Verify(r => r.UpdateAsync(It.Is<User>(u => u.TwoFaEnabled), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Toggle2FA_WhenEnabled_Disables()
+    {
+        var user = BuildUser();
+        user.TwoFaEnabled = true;
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var result = await _sut.Toggle2FaAsync(user.Id);
+
+        result.Succeeded.Should().BeTrue();
+        _userRepo.Verify(r => r.UpdateAsync(It.Is<User>(u => !u.TwoFaEnabled), default), Times.Once);
+    }
 }

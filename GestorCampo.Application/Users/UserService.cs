@@ -99,6 +99,74 @@ public class UserService
         });
     }
 
+    public async Task<ServiceResult<UserResponse>> UpdateAsync(
+        Guid id, UpdateUserRequest request, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
+    {
+        var user = await _users.GetByIdAsync(id, ct);
+        if (user == null) return ServiceResult<UserResponse>.Fail("Usuario no encontrado");
+
+        if (currentRole == UserRole.Supervisor && user.SupervisorId != currentUserId)
+            return ServiceResult<UserResponse>.Fail("No tiene acceso a este usuario");
+
+        if (request.Name != null) user.Name = request.Name;
+        if (request.Phone != null) user.Phone = request.Phone;
+        if (request.Zone != null) user.Zone = request.Zone;
+        if (request.IdNumber != null) user.IdNumber = request.IdNumber;
+        if (request.EmployeeCode != null) user.EmployeeCode = request.EmployeeCode;
+        if (request.Address != null) user.Address = request.Address;
+        if (request.PhotoUrl != null) user.PhotoUrl = request.PhotoUrl;
+        if (request.SupervisorId.HasValue) user.SupervisorId = request.SupervisorId;
+        user.UpdatedBy = currentUserId;
+
+        await _users.UpdateAsync(user, ct);
+        return ServiceResult<UserResponse>.Ok(ToResponse(user));
+    }
+
+    public async Task<ServiceResult> DeleteAsync(Guid id, Guid currentUserId, CancellationToken ct = default)
+    {
+        var user = await _users.GetByIdAsync(id, ct);
+        if (user == null) return ServiceResult.Fail("Usuario no encontrado");
+        if (user.Id == currentUserId) return ServiceResult.Fail("No puedes eliminar tu propia cuenta");
+
+        user.DeletedAt = DateTime.UtcNow;
+        user.DeletedBy = currentUserId;
+        user.IsActive = false;
+        user.UpdatedBy = currentUserId;
+        await _users.UpdateAsync(user, ct);
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> BlockAsync(Guid id, CancellationToken ct = default)
+    {
+        var user = await _users.GetByIdAsync(id, ct);
+        if (user == null) return ServiceResult.Fail("Usuario no encontrado");
+
+        user.LockedUntil = DateTime.UtcNow.AddYears(100);
+        await _users.UpdateAsync(user, ct);
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> UnblockAsync(Guid id, CancellationToken ct = default)
+    {
+        var user = await _users.GetByIdAsync(id, ct);
+        if (user == null) return ServiceResult.Fail("Usuario no encontrado");
+
+        user.LockedUntil = null;
+        user.FailedAttempts = 0;
+        await _users.UpdateAsync(user, ct);
+        return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult> Toggle2FaAsync(Guid id, CancellationToken ct = default)
+    {
+        var user = await _users.GetByIdAsync(id, ct);
+        if (user == null) return ServiceResult.Fail("Usuario no encontrado");
+
+        user.TwoFaEnabled = !user.TwoFaEnabled;
+        await _users.UpdateAsync(user, ct);
+        return ServiceResult.Ok();
+    }
+
     private static UserResponse ToResponse(User u) => new()
     {
         Id = u.Id,
