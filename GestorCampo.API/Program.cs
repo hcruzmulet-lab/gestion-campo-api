@@ -1,6 +1,7 @@
 // GestorCampo.API/Program.cs
 using System.Text;
 using GestorCampo.Application.Auth;
+using GestorCampo.Application.Users;
 using GestorCampo.API.Middleware;
 using GestorCampo.Domain.Interfaces.Repositories;
 using GestorCampo.Domain.Interfaces.Services;
@@ -35,6 +36,7 @@ builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<UserService>();
 
 // JWT Auth
 var jwtKey = builder.Configuration["Jwt:Secret"]!;
