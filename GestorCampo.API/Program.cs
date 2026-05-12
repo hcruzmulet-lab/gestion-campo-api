@@ -4,6 +4,7 @@ using GestorCampo.Application.Auth;
 using GestorCampo.Application.Clients;
 using GestorCampo.Application.Orders;
 using GestorCampo.Application.Products;
+using GestorCampo.Application.Tracking;
 using GestorCampo.Application.Users;
 using GestorCampo.Application.Visits;
 using GestorCampo.API.Middleware;
@@ -37,6 +38,7 @@ builder.Services.AddScoped<IClientRepository, ClientRepository>();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IVisitRepository, VisitRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<ITrackingRepository, TrackingRepository>();
 
 // Services
 builder.Services.AddScoped<IJwtService, JwtService>();
@@ -49,6 +51,7 @@ builder.Services.AddScoped<ClientService>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<OrderService>();
+builder.Services.AddScoped<TrackingService>();
 
 // JWT Auth
 var jwtKey = builder.Configuration["Jwt:Secret"]!;
