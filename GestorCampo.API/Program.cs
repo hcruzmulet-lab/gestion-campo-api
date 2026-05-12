@@ -1,18 +1,25 @@
 // GestorCampo.API/Program.cs
 using System.Text;
+using GestorCampo.Application.AuditLogs;
 using GestorCampo.Application.Auth;
 using GestorCampo.Application.Clients;
+using GestorCampo.Application.Dashboard;
 using GestorCampo.Application.Orders;
 using GestorCampo.Application.Products;
+using GestorCampo.Application.Sync;
 using GestorCampo.Application.Tracking;
 using GestorCampo.Application.Users;
 using GestorCampo.Application.Visits;
 using GestorCampo.API.Middleware;
+using GestorCampo.Domain.Interfaces.Providers;
 using GestorCampo.Domain.Interfaces.Repositories;
 using GestorCampo.Domain.Interfaces.Services;
+using GestorCampo.Infrastructure.Adapters;
 using GestorCampo.Infrastructure.Persistence;
 using GestorCampo.Infrastructure.Persistence.Repositories;
 using GestorCampo.Infrastructure.Services;
+using Hangfire;
+using Hangfire.InMemory;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +46,13 @@ builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IVisitRepository, VisitRepository>();
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
 builder.Services.AddScoped<ITrackingRepository, TrackingRepository>();
+builder.Services.AddScoped<ISyncLogRepository, SyncLogRepository>();
+builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+
+// Adapters
+builder.Services.AddScoped<IClientProvider, NullClientProvider>();
+builder.Services.AddScoped<IProductProvider, NullProductProvider>();
+builder.Services.AddScoped<IOrderExporter, NullOrderExporter>();
 
 // Services
 builder.Services.AddScoped<IJwtService, JwtService>();
@@ -52,6 +66,9 @@ builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<TrackingService>();
+builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<SyncService>();
+builder.Services.AddScoped<AuditLogService>();
 
 // JWT Auth
 var jwtKey = builder.Configuration["Jwt:Secret"]!;
@@ -83,6 +100,11 @@ builder.Services.AddRateLimiter(opts =>
         o.QueueLimit = 0;
     });
 });
+
+// Hangfire (InMemory — replace with Hangfire.PostgreSql for production)
+builder.Services.AddHangfire(config =>
+    config.UseInMemoryStorage());
+builder.Services.AddHangfireServer();
 
 // Controllers + OpenAPI
 builder.Services.AddControllers();
@@ -121,6 +143,14 @@ app.UseRateLimiter();
 app.UseMiddleware<AuditMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter() }
+});
+
+RecurringJob.AddOrUpdate<SyncService>("sync-clients", s => s.SyncClientsAsync(CancellationToken.None), Cron.Daily);
+RecurringJob.AddOrUpdate<SyncService>("sync-products", s => s.SyncProductsAsync(CancellationToken.None), Cron.Daily);
 
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
