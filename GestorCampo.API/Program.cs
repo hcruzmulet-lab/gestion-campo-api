@@ -1,6 +1,7 @@
 // GestorCampo.API/Program.cs
 using System.Text;
 using GestorCampo.Application.Auth;
+using GestorCampo.Application.Clients;
 using GestorCampo.Application.Users;
 using GestorCampo.API.Middleware;
 using GestorCampo.Domain.Interfaces.Repositories;
@@ -29,6 +30,7 @@ builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
 // Repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<IClientRepository, ClientRepository>();
 
 // Services
 builder.Services.AddScoped<IJwtService, JwtService>();
@@ -37,6 +39,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<ClientService>();
 
 // JWT Auth
 var jwtKey = builder.Configuration["Jwt:Secret"]!;
