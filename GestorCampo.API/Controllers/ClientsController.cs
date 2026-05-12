@@ -27,6 +27,7 @@ public class ClientsController : ControllerBase
     public async Task<IActionResult> GetList([FromQuery] ClientListRequest request, CancellationToken ct)
     {
         var result = await _clients.GetListAsync(request, CurrentUserId, CurrentRole, ct);
+        if (!result.Succeeded) return StatusCode(500, new { error = result.Error });
         return Ok(result.Data);
     }
 
@@ -34,7 +35,11 @@ public class ClientsController : ControllerBase
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _clients.GetByIdAsync(id, CurrentUserId, CurrentRole, ct);
-        if (!result.Succeeded) return NotFound(new { error = result.Error });
+        if (!result.Succeeded)
+        {
+            if (result.Error!.Contains("acceso")) return Forbid();
+            return NotFound(new { error = result.Error });
+        }
         return Ok(result.Data);
     }
 
@@ -43,7 +48,11 @@ public class ClientsController : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateClientRequest request, CancellationToken ct)
     {
         var result = await _clients.CreateAsync(request, CurrentUserId, ct);
-        if (!result.Succeeded) return Conflict(new { error = result.Error });
+        if (!result.Succeeded)
+        {
+            if (result.Error!.Contains("vendedor")) return BadRequest(new { error = result.Error });
+            return Conflict(new { error = result.Error });
+        }
         return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result.Data);
     }
 
@@ -52,7 +61,11 @@ public class ClientsController : ControllerBase
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateClientRequest request, CancellationToken ct)
     {
         var result = await _clients.UpdateAsync(id, request, CurrentUserId, ct);
-        if (!result.Succeeded) return NotFound(new { error = result.Error });
+        if (!result.Succeeded)
+        {
+            if (result.Error!.Contains("vendedor")) return BadRequest(new { error = result.Error });
+            return NotFound(new { error = result.Error });
+        }
         return Ok(result.Data);
     }
 
