@@ -136,6 +136,31 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
 }
 
+// Seed SuperAdmin if no users exist
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var passwordService = scope.ServiceProvider.GetRequiredService<IPasswordService>();
+
+    if (!db.Users.Any())
+    {
+        var adminId = Guid.NewGuid();
+        db.Users.Add(new GestorCampo.Domain.Entities.User
+        {
+            Id = adminId,
+            Name = "Super Admin",
+            Email = "admin@gestor.com",
+            PasswordHash = passwordService.Hash("Admin1234!"),
+            Role = GestorCampo.Domain.Enums.UserRole.SuperAdmin,
+            IsActive = true,
+            EmailVerified = true,
+            CreatedBy = adminId,
+            UpdatedBy = adminId,
+        });
+        await db.SaveChangesAsync();
+    }
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
