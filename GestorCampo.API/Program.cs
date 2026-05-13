@@ -106,6 +106,16 @@ builder.Services.AddHangfire(config =>
     config.UseInMemoryStorage());
 builder.Services.AddHangfireServer();
 
+// CORS
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:5173" };
+builder.Services.AddCors(opts =>
+    opts.AddPolicy("Default", p => p
+        .WithOrigins(allowedOrigins)
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials()));
+
 // Controllers + OpenAPI
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -164,6 +174,7 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI();
 
+app.UseCors("Default");
 app.UseRateLimiter();
 app.UseMiddleware<AuditMiddleware>();
 app.UseAuthentication();
