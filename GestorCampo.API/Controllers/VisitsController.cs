@@ -21,7 +21,7 @@ public class VisitsController : ControllerBase
         Guid.Parse(User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value);
 
     private UserRole CurrentRole =>
-        Enum.Parse<UserRole>(User.FindFirst(ClaimTypes.Role)!.Value);
+        Enum.Parse<UserRole>(User.FindFirst("role")!.Value);
 
     [HttpGet]
     public async Task<IActionResult> GetList([FromQuery] VisitListRequest request, CancellationToken ct)
