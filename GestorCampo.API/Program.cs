@@ -67,6 +67,7 @@ builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<TrackingService>();
 builder.Services.AddScoped<DashboardService>();
+builder.Services.AddScoped<AgentStatusService>();
 builder.Services.AddScoped<SyncService>();
 builder.Services.AddScoped<AuditLogService>();
 
