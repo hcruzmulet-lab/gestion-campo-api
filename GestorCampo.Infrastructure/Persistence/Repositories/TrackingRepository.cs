@@ -22,4 +22,22 @@ public class TrackingRepository : ITrackingRepository
             .Where(t => t.VendorId == vendorId && t.CapturedAt >= from && t.CapturedAt <= to)
             .OrderBy(t => t.CapturedAt)
             .ToListAsync(ct);
+
+    public async Task<Dictionary<Guid, TrackingPoint>> GetLastLocationsAsync(
+        IEnumerable<Guid> vendorIds, CancellationToken ct = default)
+    {
+        var ids = vendorIds.ToList();
+        var since = DateTime.UtcNow.AddHours(-24);
+
+        var points = await _db.TrackingPoints
+            .Where(t => ids.Contains(t.VendorId) && t.CapturedAt >= since)
+            .ToListAsync(ct);
+
+        return points
+            .GroupBy(t => t.VendorId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(t => t.CapturedAt).First()
+            );
+    }
 }
