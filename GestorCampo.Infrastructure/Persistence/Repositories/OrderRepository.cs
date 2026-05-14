@@ -45,6 +45,15 @@ public class OrderRepository : IOrderRepository
         return (items, totalCount);
     }
 
+    public Task<List<Order>> GetApprovedWithLinesAsync(
+        DateTime from, DateTime to, CancellationToken ct = default) =>
+        _db.Orders
+            .Include(o => o.Lines)
+            .Where(o => o.Status == OrderStatus.Approved
+                     && o.CreatedAt >= from
+                     && o.CreatedAt <= to)
+            .ToListAsync(ct);
+
     public async Task AddAsync(Order order, CancellationToken ct = default)
     {
         await _db.Orders.AddAsync(order, ct);

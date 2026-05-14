@@ -10,6 +10,9 @@ public interface IOrderRepository
         int page, int pageSize,
         OrderStatus? status, Guid? vendorId, Guid? clientId,
         DateTime? from, DateTime? to, CancellationToken ct = default);
+    /// <summary>Returns Approved orders in the given UTC range, including their Lines.</summary>
+    Task<List<Order>> GetApprovedWithLinesAsync(
+        DateTime from, DateTime to, CancellationToken ct = default);
     Task AddAsync(Order order, CancellationToken ct = default);
     Task UpdateAsync(Order order, CancellationToken ct = default);
 }
