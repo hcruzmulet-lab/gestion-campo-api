@@ -174,6 +174,13 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Dev seed: agents, visits, tracking data for dashboard testing
+if (app.Environment.IsDevelopment() &&
+    app.Configuration.GetValue<bool>("DevSeed:Dashboard"))
+{
+    await GestorCampo.API.DevSeed.DashboardDevSeed.SeedAsync(app.Services);
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
