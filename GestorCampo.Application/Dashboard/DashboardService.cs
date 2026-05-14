@@ -23,6 +23,12 @@ public class DashboardService
 
         var (visits, _) = await _visits.GetListAsync(1, 1000, null, null, null, today, tomorrow, ct);
         var (orders, _) = await _orders.GetListAsync(1, 1000, null, null, null, today, tomorrow, ct);
+        var approvedOrders = await _orders.GetApprovedWithLinesAsync(today, tomorrow, ct);
+
+        var doneCount = visits.Count(v => v.Status is VisitStatus.Completed or VisitStatus.NotCompleted);
+        var approvedValue = approvedOrders
+            .SelectMany(o => o.Lines)
+            .Sum(l => l.Quantity * l.UnitPrice * (1 - l.Discount));
 
         var stats = new DashboardStatsResponse
         {
@@ -41,7 +47,14 @@ public class DashboardService
                 Rejected = orders.Count(o => o.Status == OrderStatus.Rejected),
                 Delivered = orders.Count(o => o.Status == OrderStatus.Delivered)
             },
-            ActiveVendorsToday = visits.Select(v => v.VendorId).Distinct().Count()
+            ActiveVendorsToday = visits.Select(v => v.VendorId).Distinct().Count(),
+            ConversionRate = visits.Count > 0
+                ? visits.Count(v => v.RelatedOrderId.HasValue) / (float)visits.Count
+                : 0f,
+            TotalApprovedValue = approvedValue,
+            VisitCompletionRate = doneCount > 0
+                ? visits.Count(v => v.Status == VisitStatus.Completed) / (float)doneCount
+                : 0f
         };
 
         return ServiceResult<DashboardStatsResponse>.Ok(stats);
