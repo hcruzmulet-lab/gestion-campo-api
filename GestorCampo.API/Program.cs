@@ -75,6 +75,7 @@ var jwtKey = builder.Configuration["Jwt:Secret"]!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opts =>
     {
+        opts.MapInboundClaims = false; // keep "role" claim name as-is; without this the handler remaps it to ClaimTypes.Role and [Authorize(Roles=...)] fails
         opts.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
