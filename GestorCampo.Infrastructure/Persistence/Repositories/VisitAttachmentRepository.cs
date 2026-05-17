@@ -22,7 +22,7 @@ public class VisitAttachmentRepository : IVisitAttachmentRepository
 
     public async Task AddAsync(VisitAttachment attachment, CancellationToken ct = default)
     {
-        _db.VisitAttachments.Add(attachment);
+        await _db.VisitAttachments.AddAsync(attachment, ct);
         await _db.SaveChangesAsync(ct);
     }
 

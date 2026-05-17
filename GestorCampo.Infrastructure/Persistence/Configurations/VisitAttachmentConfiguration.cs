@@ -17,6 +17,5 @@ public class VisitAttachmentConfiguration : IEntityTypeConfiguration<VisitAttach
                .WithMany(v => v.Attachments)
                .HasForeignKey(a => a.VisitId)
                .OnDelete(DeleteBehavior.Cascade);
-        builder.HasQueryFilter(a => a.DeletedAt == null);
     }
 }
