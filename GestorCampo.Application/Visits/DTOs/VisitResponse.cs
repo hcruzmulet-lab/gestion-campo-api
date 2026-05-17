@@ -23,4 +23,11 @@ public class VisitResponse
     public bool IsActive { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public double? CheckInLat { get; set; }
+    public double? CheckInLng { get; set; }
+    public double? CheckOutLat { get; set; }
+    public double? CheckOutLng { get; set; }
+    public DateTime? CheckOutAtUtc { get; set; }
+    public bool IsOutOfRange { get; set; }
+    public int? OutOfRangeMeters { get; set; }
 }

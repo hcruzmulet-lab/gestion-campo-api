@@ -178,6 +178,13 @@ public class VisitService
         RelatedOrderId = v.RelatedOrderId,
         IsActive = v.IsActive,
         CreatedAt = v.CreatedAt,
-        UpdatedAt = v.UpdatedAt
+        UpdatedAt = v.UpdatedAt,
+        CheckInLat = v.CheckInLat,
+        CheckInLng = v.CheckInLng,
+        CheckOutLat = v.CheckOutLat,
+        CheckOutLng = v.CheckOutLng,
+        CheckOutAtUtc = v.CheckOutAt,
+        IsOutOfRange = v.IsOutOfRange,
+        OutOfRangeMeters = v.OutOfRangeMeters
     };
 }
