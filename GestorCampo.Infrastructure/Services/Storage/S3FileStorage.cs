@@ -38,12 +38,16 @@ public class S3FileStorage : IFileStorage
 
     public Task<string> GetPresignedReadUrlAsync(string key, TimeSpan ttl, CancellationToken ct = default)
     {
+        var protocol = _opts.Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            ? Protocol.HTTP
+            : Protocol.HTTPS;
         var url = _client.GetPreSignedURL(new GetPreSignedUrlRequest
         {
             BucketName = _opts.Bucket,
             Key = key,
             Expires = DateTime.UtcNow.Add(ttl),
-            Verb = HttpVerb.GET
+            Verb = HttpVerb.GET,
+            Protocol = protocol
         });
         return Task.FromResult(url);
     }
