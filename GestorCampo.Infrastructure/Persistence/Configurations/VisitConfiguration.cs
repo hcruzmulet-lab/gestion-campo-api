@@ -11,9 +11,11 @@ public class VisitConfiguration : IEntityTypeConfiguration<Visit>
         builder.ToTable("visits");
         builder.HasKey(v => v.Id);
 
-        builder.Property(v => v.Notes).HasMaxLength(1000);
+        // Notes and Comment are free-form text; no length cap to support
+        // long observations / pegado de texto largo desde mobile.
+        builder.Property(v => v.Notes).HasColumnType("text");
+        builder.Property(v => v.Comment).HasColumnType("text");
         builder.Property(v => v.Result).HasMaxLength(500);
-        builder.Property(v => v.Comment).HasMaxLength(1000);
         builder.Property(v => v.Status).HasConversion<int>();
 
         builder.HasOne(v => v.Client)
