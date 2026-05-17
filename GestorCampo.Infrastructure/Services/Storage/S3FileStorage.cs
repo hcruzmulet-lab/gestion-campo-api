@@ -24,8 +24,7 @@ public class S3FileStorage : IFileStorage
             Key = key,
             InputStream = content,
             ContentType = contentType,
-            AutoCloseStream = false,
-            DisablePayloadSigning = true
+            AutoCloseStream = false
         };
         await _client.PutObjectAsync(put, ct);
         return key;
