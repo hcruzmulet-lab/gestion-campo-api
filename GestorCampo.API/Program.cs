@@ -1,8 +1,10 @@
 // GestorCampo.API/Program.cs
 using System.Text;
+using Amazon.S3;
 using GestorCampo.Application.AuditLogs;
 using GestorCampo.Application.Auth;
 using GestorCampo.Application.Clients;
+using GestorCampo.Application.Common;
 using GestorCampo.Application.Dashboard;
 using GestorCampo.Application.Orders;
 using GestorCampo.Application.Products;
@@ -18,6 +20,8 @@ using GestorCampo.Infrastructure.Adapters;
 using GestorCampo.Infrastructure.Persistence;
 using GestorCampo.Infrastructure.Persistence.Repositories;
 using GestorCampo.Infrastructure.Services;
+using GestorCampo.Infrastructure.Services.Storage;
+using Microsoft.Extensions.Options;
 using Hangfire;
 using Hangfire.InMemory;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -70,6 +74,24 @@ builder.Services.AddScoped<DashboardService>();
 builder.Services.AddScoped<AgentStatusService>();
 builder.Services.AddScoped<SyncService>();
 builder.Services.AddScoped<AuditLogService>();
+
+// Storage + geofence + attachments (Plan 7)
+builder.Services.Configure<S3StorageOptions>(builder.Configuration.GetSection("Storage"));
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<S3StorageOptions>>().Value;
+    var config = new AmazonS3Config
+    {
+        ServiceURL = opts.Endpoint,
+        ForcePathStyle = opts.ForcePathStyle,
+        UseHttp = opts.Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+    };
+    return new AmazonS3Client(opts.AccessKey, opts.SecretKey, config);
+});
+builder.Services.AddScoped<IFileStorage, S3FileStorage>();
+builder.Services.AddSingleton<GeofenceService>();
+builder.Services.AddScoped<IVisitAttachmentRepository, VisitAttachmentRepository>();
+builder.Services.AddScoped<VisitAttachmentService>();
 
 // JWT Auth
 var jwtKey = builder.Configuration["Jwt:Secret"]!;
