@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<OrderLine> OrderLines => Set<OrderLine>();
     public DbSet<TrackingPoint> TrackingPoints => Set<TrackingPoint>();
     public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
+    public DbSet<VisitAttachment> VisitAttachments => Set<VisitAttachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +30,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Product>().HasQueryFilter(p => p.DeletedAt == null);
         modelBuilder.Entity<Visit>().HasQueryFilter(v => v.DeletedAt == null);
         modelBuilder.Entity<Order>().HasQueryFilter(o => o.DeletedAt == null);
+        modelBuilder.Entity<VisitAttachment>().HasQueryFilter(a => a.DeletedAt == null);
         // TrackingPoint: no soft-delete filter (append-only log)
 
         base.OnModelCreating(modelBuilder);
