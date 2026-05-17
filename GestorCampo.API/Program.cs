@@ -84,7 +84,8 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     {
         ServiceURL = opts.Endpoint,
         ForcePathStyle = opts.ForcePathStyle,
-        UseHttp = opts.Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+        UseHttp = opts.Endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase),
+        AuthenticationRegion = opts.Region
     };
     return new AmazonS3Client(opts.AccessKey, opts.SecretKey, config);
 });
