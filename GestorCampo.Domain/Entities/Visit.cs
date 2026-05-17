@@ -21,4 +21,12 @@ public class Visit : BaseEntity
     public double? Lat { get; set; }
     public double? Lng { get; set; }
     public Guid? RelatedOrderId { get; set; }
+    public double? CheckInLat { get; set; }
+    public double? CheckInLng { get; set; }
+    public double? CheckOutLat { get; set; }
+    public double? CheckOutLng { get; set; }
+    public DateTime? CheckOutAt { get; set; }
+    public bool IsOutOfRange { get; set; }
+    public int? OutOfRangeMeters { get; set; }
+    public List<VisitAttachment> Attachments { get; set; } = new();
 }
