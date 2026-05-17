@@ -112,8 +112,10 @@ public class VisitService
         if (visit.Status != VisitStatus.Planned)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-in en visitas planificadas");
 
+        var now = DateTime.UtcNow;
         visit.CheckInLat = req.Lat;
         visit.CheckInLng = req.Lng;
+        visit.CheckinAt = now;
         visit.Status = VisitStatus.InProgress;
 
         var client = await _clients.GetByIdAsync(visit.ClientId, ct);
@@ -139,9 +141,11 @@ public class VisitService
         if (visit.Status != VisitStatus.InProgress)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-out en visitas en curso");
 
+        var now = DateTime.UtcNow;
         visit.CheckOutLat = req.Lat;
         visit.CheckOutLng = req.Lng;
-        visit.CheckOutAt = DateTime.UtcNow;
+        visit.CheckOutAt = now;
+        visit.CheckoutAt = now;
         visit.Status = VisitStatus.Completed;
         visit.UpdatedBy = currentUserId;
         await _visits.UpdateAsync(visit, ct);
