@@ -59,4 +59,9 @@ public class VisitRepository : IVisitRepository
         _db.Visits.Update(visit);
         await _db.SaveChangesAsync(ct);
     }
+
+    public Task<bool> HasInProgressForVendorAsync(Guid vendorId, CancellationToken ct = default) =>
+        _db.Visits.AnyAsync(
+            v => v.VendorId == vendorId && v.Status == VisitStatus.InProgress,
+            ct);
 }

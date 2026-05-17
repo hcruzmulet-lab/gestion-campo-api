@@ -12,4 +12,5 @@ public interface IVisitRepository
         DateTime? from, DateTime? to, CancellationToken ct = default);
     Task AddAsync(Visit visit, CancellationToken ct = default);
     Task UpdateAsync(Visit visit, CancellationToken ct = default);
+    Task<bool> HasInProgressForVendorAsync(Guid vendorId, CancellationToken ct = default);
 }

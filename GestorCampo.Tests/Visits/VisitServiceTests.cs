@@ -118,6 +118,23 @@ public class VisitServiceTests
     }
 
     [Fact]
+    public async Task Create_AsVendor_WithExistingInProgress_Fails()
+    {
+        var currentUserId = Guid.NewGuid();
+        var client = BuildClient();
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+        _visitRepo.Setup(r => r.HasInProgressForVendorAsync(currentUserId, default)).ReturnsAsync(true);
+
+        var result = await _sut.CreateAsync(
+            new CreateVisitRequest { ClientId = client.Id, PlannedAt = DateTime.UtcNow.AddDays(1) },
+            currentUserId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("visita en curso");
+        _visitRepo.Verify(r => r.AddAsync(It.IsAny<Visit>(), default), Times.Never);
+    }
+
+    [Fact]
     public async Task Create_AsSupervisor_ValidVendor_ReturnsOk()
     {
         var client = BuildClient();

@@ -46,6 +46,11 @@ public class VisitService
             vendorId = request.VendorId.Value;
         }
 
+        // HARD rule: a vendor can only have ONE in-progress visit at a time.
+        if (await _visits.HasInProgressForVendorAsync(vendorId, ct))
+            return ServiceResult<VisitResponse>.Fail(
+                "Tenés una visita en curso. Termínala antes de iniciar otra.");
+
         var visit = new Visit
         {
             ClientId = request.ClientId,
