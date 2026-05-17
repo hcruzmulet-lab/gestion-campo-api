@@ -143,6 +143,22 @@ public class VisitService
         return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
     }
 
+    public async Task<ServiceResult<VisitResponse>> UpdateAsync(
+        Guid id, UpdateVisitRequest req, Guid currentUserId, UserRole role, CancellationToken ct = default)
+    {
+        var visit = await _visits.GetByIdAsync(id, ct);
+        if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
+        if (role == UserRole.Vendor && visit.VendorId != currentUserId)
+            return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
+        if (visit.Status != VisitStatus.InProgress && visit.Status != VisitStatus.Planned)
+            return ServiceResult<VisitResponse>.Fail("Solo se puede actualizar visitas planificadas o en curso");
+
+        if (req.Notes != null) visit.Notes = req.Notes;
+        visit.UpdatedBy = currentUserId;
+        await _visits.UpdateAsync(visit, ct);
+        return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
+    }
+
     public async Task<ServiceResult> DeleteAsync(
         Guid id, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {

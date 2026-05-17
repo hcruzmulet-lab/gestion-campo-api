@@ -100,6 +100,23 @@ public class VisitsController : ControllerBase
         return Ok(result.Data);
     }
 
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(VisitResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateVisitRequest request, CancellationToken ct)
+    {
+        var result = await _visits.UpdateAsync(id, request, CurrentUserId, CurrentRole, ct);
+        if (!result.Succeeded)
+        {
+            if (result.Error!.Contains("acceso")) return Forbid();
+            if (result.Error.Contains("no encontrada")) return NotFound(new { error = result.Error });
+            return BadRequest(new { error = result.Error });
+        }
+        return Ok(result.Data);
+    }
+
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "SuperAdmin,Supervisor")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
