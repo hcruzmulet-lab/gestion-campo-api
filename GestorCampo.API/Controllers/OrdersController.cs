@@ -1,9 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using GestorCampo.Application.Common;
 using GestorCampo.Application.Orders;
 using GestorCampo.Application.Orders.DTOs;
 using GestorCampo.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GestorCampo.API.Controllers;
@@ -24,6 +26,8 @@ public class OrdersController : ControllerBase
         Enum.Parse<UserRole>(User.FindFirst("role")!.Value);
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<OrderResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetList([FromQuery] OrderListRequest request, CancellationToken ct)
     {
         var result = await _orders.GetListAsync(request, CurrentUserId, CurrentRole, ct);
@@ -32,6 +36,9 @@ public class OrdersController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _orders.GetByIdAsync(id, CurrentUserId, CurrentRole, ct);
@@ -44,6 +51,10 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateOrderRequest request, CancellationToken ct)
     {
         var result = await _orders.CreateAsync(request, CurrentUserId, ct);
@@ -58,6 +69,9 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost("{id:guid}/send")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Send(Guid id, CancellationToken ct)
     {
         var result = await _orders.SendAsync(id, CurrentUserId, ct);
@@ -71,6 +85,9 @@ public class OrdersController : ControllerBase
 
     [HttpPost("{id:guid}/approve")]
     [Authorize(Roles = "SuperAdmin,Supervisor")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
     {
         var result = await _orders.ApproveAsync(id, CurrentUserId, ct);
@@ -84,6 +101,9 @@ public class OrdersController : ControllerBase
 
     [HttpPost("{id:guid}/reject")]
     [Authorize(Roles = "SuperAdmin,Supervisor")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectOrderRequest request, CancellationToken ct)
     {
         var result = await _orders.RejectAsync(id, request, CurrentUserId, ct);
@@ -96,6 +116,9 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost("{id:guid}/deliver")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Deliver(Guid id, CancellationToken ct)
     {
         var result = await _orders.DeliverAsync(id, CurrentUserId, ct);

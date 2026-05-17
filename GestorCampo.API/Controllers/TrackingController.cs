@@ -4,6 +4,7 @@ using GestorCampo.Application.Tracking;
 using GestorCampo.Application.Tracking.DTOs;
 using GestorCampo.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GestorCampo.API.Controllers;
@@ -22,6 +23,7 @@ public class TrackingController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Vendor")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> AddPoints([FromBody] BulkTrackingRequest request, CancellationToken ct)
     {
         await _tracking.AddPointsAsync(request, CurrentUserId, ct);
@@ -30,6 +32,8 @@ public class TrackingController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "SuperAdmin,Supervisor")]
+    [ProducesResponseType(typeof(List<TrackingPointResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetTrail([FromQuery] TrackingQueryRequest request, CancellationToken ct)
     {
         var result = await _tracking.GetTrailAsync(request, ct);

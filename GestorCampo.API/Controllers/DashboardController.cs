@@ -1,5 +1,7 @@
 using GestorCampo.Application.Dashboard;
+using GestorCampo.Application.Dashboard.DTOs;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GestorCampo.API.Controllers;
@@ -19,6 +21,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("stats")]
+    [ProducesResponseType(typeof(DashboardStatsResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStats(CancellationToken ct)
     {
         var result = await _dashboard.GetStatsAsync(ct);
@@ -26,6 +29,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("agents-status")]
+    [ProducesResponseType(typeof(List<AgentStatusDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAgentsStatus(CancellationToken ct)
     {
         var result = await _agentStatus.GetAgentStatusesAsync(ct);

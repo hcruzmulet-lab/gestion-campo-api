@@ -3,6 +3,7 @@ using GestorCampo.Application.Visits;
 using GestorCampo.Application.Visits.DTOs;
 using GestorCampo.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GestorCampo.API.Controllers;
@@ -23,6 +24,10 @@ public class VisitAttachmentsController : ControllerBase
 
     [HttpPost]
     [RequestSizeLimit(10 * 1024 * 1024)]   // 10 MB request cap
+    [ProducesResponseType(typeof(VisitAttachmentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Upload(Guid visitId, IFormFile file, CancellationToken ct)
     {
         if (file is null || file.Length == 0)
@@ -50,6 +55,9 @@ public class VisitAttachmentsController : ControllerBase
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(List<VisitAttachmentResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> List(Guid visitId, CancellationToken ct)
     {
         var result = await _svc.ListAsync(visitId, CurrentUserId, CurrentRole, ct);
@@ -62,6 +70,9 @@ public class VisitAttachmentsController : ControllerBase
     }
 
     [HttpDelete("{attachmentId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid visitId, Guid attachmentId, CancellationToken ct)
     {
         var result = await _svc.DeleteAsync(visitId, attachmentId, CurrentUserId, CurrentRole, ct);

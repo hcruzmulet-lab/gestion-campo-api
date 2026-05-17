@@ -1,9 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using GestorCampo.Application.Common;
 using GestorCampo.Application.Visits;
 using GestorCampo.Application.Visits.DTOs;
 using GestorCampo.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GestorCampo.API.Controllers;
@@ -24,6 +26,8 @@ public class VisitsController : ControllerBase
         Enum.Parse<UserRole>(User.FindFirst("role")!.Value);
 
     [HttpGet]
+    [ProducesResponseType(typeof(PagedResult<VisitResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetList([FromQuery] VisitListRequest request, CancellationToken ct)
     {
         var result = await _visits.GetListAsync(request, CurrentUserId, CurrentRole, ct);
@@ -32,6 +36,9 @@ public class VisitsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(VisitResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _visits.GetByIdAsync(id, CurrentUserId, CurrentRole, ct);
@@ -44,6 +51,9 @@ public class VisitsController : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(VisitResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateVisitRequest request, CancellationToken ct)
     {
         var result = await _visits.CreateAsync(request, CurrentUserId, CurrentRole, ct);
@@ -57,6 +67,10 @@ public class VisitsController : ControllerBase
     }
 
     [HttpPut("{id:guid}/checkin")]
+    [ProducesResponseType(typeof(VisitResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CheckIn(Guid id, [FromBody] CheckInRequest request, CancellationToken ct)
     {
         var result = await _visits.CheckInAsync(id, request, CurrentUserId, CurrentRole, ct);
@@ -70,6 +84,10 @@ public class VisitsController : ControllerBase
     }
 
     [HttpPut("{id:guid}/checkout")]
+    [ProducesResponseType(typeof(VisitResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CheckOut(Guid id, [FromBody] CheckOutRequest request, CancellationToken ct)
     {
         var result = await _visits.CheckOutAsync(id, request, CurrentUserId, CurrentRole, ct);
@@ -84,6 +102,8 @@ public class VisitsController : ControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "SuperAdmin,Supervisor")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var result = await _visits.DeleteAsync(id, CurrentUserId, CurrentRole, ct);

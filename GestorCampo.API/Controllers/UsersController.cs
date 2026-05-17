@@ -1,9 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using GestorCampo.Application.Common;
 using GestorCampo.Application.Users;
 using GestorCampo.Application.Users.DTOs;
 using GestorCampo.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GestorCampo.API.Controllers;
@@ -25,6 +27,7 @@ public class UsersController : ControllerBase
 
     [HttpGet]
     [Authorize(Roles = "SuperAdmin,Supervisor")]
+    [ProducesResponseType(typeof(PagedResult<UserResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetList([FromQuery] UserListRequest request, CancellationToken ct)
     {
         var result = await _users.GetListAsync(request, CurrentUserId, CurrentRole, ct);
@@ -33,6 +36,8 @@ public class UsersController : ControllerBase
 
     [HttpGet("{id:guid}")]
     [Authorize(Roles = "SuperAdmin,Supervisor")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await _users.GetByIdAsync(id, CurrentUserId, CurrentRole, ct);
@@ -42,6 +47,8 @@ public class UsersController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "SuperAdmin")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateUserRequest request, CancellationToken ct)
     {
         var result = await _users.CreateAsync(request, CurrentUserId, ct);
@@ -51,6 +58,9 @@ public class UsersController : ControllerBase
 
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "SuperAdmin,Supervisor")]
+    [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserRequest request, CancellationToken ct)
     {
         var result = await _users.UpdateAsync(id, request, CurrentUserId, CurrentRole, ct);
@@ -64,6 +74,8 @@ public class UsersController : ControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = "SuperAdmin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var result = await _users.DeleteAsync(id, CurrentUserId, ct);
@@ -73,6 +85,8 @@ public class UsersController : ControllerBase
 
     [HttpPost("{id:guid}/block")]
     [Authorize(Roles = "SuperAdmin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Block(Guid id, CancellationToken ct)
     {
         var result = await _users.BlockAsync(id, ct);
@@ -82,6 +96,8 @@ public class UsersController : ControllerBase
 
     [HttpPost("{id:guid}/unblock")]
     [Authorize(Roles = "SuperAdmin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Unblock(Guid id, CancellationToken ct)
     {
         var result = await _users.UnblockAsync(id, ct);
@@ -91,6 +107,8 @@ public class UsersController : ControllerBase
 
     [HttpPost("{id:guid}/toggle-2fa")]
     [Authorize(Roles = "SuperAdmin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Toggle2Fa(Guid id, CancellationToken ct)
     {
         var result = await _users.Toggle2FaAsync(id, ct);
