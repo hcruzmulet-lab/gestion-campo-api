@@ -8,9 +8,9 @@ namespace GestorCampo.API.DevSeed;
 
 public static class DashboardDevSeed
 {
-    // Buenos Aires city center as base coordinates
-    private const double BaseLat = -34.603;
-    private const double BaseLng = -58.382;
+    // Quito, Ecuador city center as base coordinates
+    private const double BaseLat = -0.2295;
+    private const double BaseLng = -78.5243;
 
     private static (double lat, double lng) Offset(double lat, double lng, double meters, double bearingDeg)
     {

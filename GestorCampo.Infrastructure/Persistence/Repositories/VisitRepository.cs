@@ -12,14 +12,20 @@ public class VisitRepository : IVisitRepository
     public VisitRepository(AppDbContext db) => _db = db;
 
     public Task<Visit?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        _db.Visits.FirstOrDefaultAsync(v => v.Id == id, ct);
+        _db.Visits
+            .Include(v => v.Client)
+            .Include(v => v.Vendor)
+            .FirstOrDefaultAsync(v => v.Id == id, ct);
 
     public async Task<(List<Visit> items, int totalCount)> GetListAsync(
         int page, int pageSize,
         VisitStatus? status, Guid? vendorId, Guid? clientId,
         DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        var query = _db.Visits.AsQueryable();
+        var query = _db.Visits
+            .Include(v => v.Client)
+            .Include(v => v.Vendor)
+            .AsQueryable();
 
         if (status.HasValue)
             query = query.Where(v => v.Status == status.Value);
