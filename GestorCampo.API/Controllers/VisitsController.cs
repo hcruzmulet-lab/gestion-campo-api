@@ -59,7 +59,7 @@ public class VisitsController : ControllerBase
     [HttpPut("{id:guid}/checkin")]
     public async Task<IActionResult> CheckIn(Guid id, [FromBody] CheckInRequest request, CancellationToken ct)
     {
-        var result = await _visits.CheckInAsync(id, request, CurrentUserId, ct);
+        var result = await _visits.CheckInAsync(id, request, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded)
         {
             if (result.Error!.Contains("acceso")) return Forbid();
@@ -72,7 +72,7 @@ public class VisitsController : ControllerBase
     [HttpPut("{id:guid}/checkout")]
     public async Task<IActionResult> CheckOut(Guid id, [FromBody] CheckOutRequest request, CancellationToken ct)
     {
-        var result = await _visits.CheckOutAsync(id, request, CurrentUserId, ct);
+        var result = await _visits.CheckOutAsync(id, request, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded)
         {
             if (result.Error!.Contains("acceso")) return Forbid();

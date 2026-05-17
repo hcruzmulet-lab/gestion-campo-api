@@ -1,4 +1,5 @@
 using FluentAssertions;
+using GestorCampo.Application.Common;
 using GestorCampo.Application.Visits;
 using GestorCampo.Application.Visits.DTOs;
 using GestorCampo.Domain.Entities;
@@ -17,7 +18,7 @@ public class VisitServiceTests
 
     public VisitServiceTests()
     {
-        _sut = new VisitService(_visitRepo.Object, _clientRepo.Object, _userRepo.Object);
+        _sut = new VisitService(_visitRepo.Object, _clientRepo.Object, _userRepo.Object, new GeofenceService());
     }
 
     private Client BuildClient() => new()
@@ -178,7 +179,7 @@ public class VisitServiceTests
     {
         _visitRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Visit?)null);
 
-        var result = await _sut.CheckInAsync(Guid.NewGuid(), new CheckInRequest(), Guid.NewGuid());
+        var result = await _sut.CheckInAsync(Guid.NewGuid(), new CheckInRequest(), Guid.NewGuid(), UserRole.Vendor);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Be("Visita no encontrada");
@@ -190,28 +191,28 @@ public class VisitServiceTests
         var visit = BuildVisit(vendorId: Guid.NewGuid());
         _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
 
-        var result = await _sut.CheckInAsync(visit.Id, new CheckInRequest(), Guid.NewGuid());
+        var result = await _sut.CheckInAsync(visit.Id, new CheckInRequest(), Guid.NewGuid(), UserRole.Vendor);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Be("No tiene acceso a esta visita");
     }
 
     [Fact]
-    public async Task CheckIn_ValidPlannedVisit_SetsInProgressAndTime()
+    public async Task CheckIn_ValidPlannedVisit_SetsInProgressAndLocation()
     {
         var vendorId = Guid.NewGuid();
         var visit = BuildVisit(vendorId: vendorId, status: VisitStatus.Planned);
         _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+        _clientRepo.Setup(r => r.GetByIdAsync(visit.ClientId, default)).ReturnsAsync((Client?)null);
 
-        var result = await _sut.CheckInAsync(visit.Id, new CheckInRequest { Lat = -0.23, Lng = -78.5 }, vendorId);
+        var result = await _sut.CheckInAsync(visit.Id, new CheckInRequest { Lat = -0.23, Lng = -78.5 }, vendorId, UserRole.Vendor);
 
         result.Succeeded.Should().BeTrue();
         _visitRepo.Verify(r => r.UpdateAsync(
             It.Is<Visit>(v =>
                 v.Status == VisitStatus.InProgress &&
-                v.CheckinAt.HasValue &&
-                v.Lat == -0.23 &&
-                v.Lng == -78.5 &&
+                v.CheckInLat == -0.23 &&
+                v.CheckInLng == -78.5 &&
                 v.UpdatedBy == vendorId),
             default), Times.Once);
     }
@@ -223,25 +224,22 @@ public class VisitServiceTests
     {
         _visitRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Visit?)null);
 
-        var result = await _sut.CheckOutAsync(Guid.NewGuid(), new CheckOutRequest { FinalStatus = VisitStatus.Completed }, Guid.NewGuid());
+        var result = await _sut.CheckOutAsync(Guid.NewGuid(), new CheckOutRequest(), Guid.NewGuid(), UserRole.Vendor);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Be("Visita no encontrada");
     }
 
     [Fact]
-    public async Task CheckOut_InProgress_NotCompleted_NoComment_ReturnsFail()
+    public async Task CheckOut_NotVendorOwner_ReturnsFail()
     {
-        var vendorId = Guid.NewGuid();
-        var visit = BuildVisit(vendorId: vendorId, status: VisitStatus.InProgress);
+        var visit = BuildVisit(vendorId: Guid.NewGuid(), status: VisitStatus.InProgress);
         _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
 
-        var result = await _sut.CheckOutAsync(visit.Id,
-            new CheckOutRequest { FinalStatus = VisitStatus.NotCompleted, Comment = null },
-            vendorId);
+        var result = await _sut.CheckOutAsync(visit.Id, new CheckOutRequest(), Guid.NewGuid(), UserRole.Vendor);
 
         result.Succeeded.Should().BeFalse();
-        result.Error.Should().Be("El comentario es obligatorio cuando la visita no se realiza");
+        result.Error.Should().Be("No tiene acceso a esta visita");
     }
 
     [Fact]
@@ -252,17 +250,79 @@ public class VisitServiceTests
         _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
 
         var result = await _sut.CheckOutAsync(visit.Id,
-            new CheckOutRequest { FinalStatus = VisitStatus.Completed, Result = "Pedido realizado" },
-            vendorId);
+            new CheckOutRequest { Lat = -0.23, Lng = -78.5 },
+            vendorId, UserRole.Vendor);
 
         result.Succeeded.Should().BeTrue();
         _visitRepo.Verify(r => r.UpdateAsync(
             It.Is<Visit>(v =>
                 v.Status == VisitStatus.Completed &&
-                v.CheckoutAt.HasValue &&
-                v.Result == "Pedido realizado" &&
+                v.CheckOutAt.HasValue &&
+                v.CheckOutLat == -0.23 &&
+                v.CheckOutLng == -78.5 &&
                 v.UpdatedBy == vendorId),
             default), Times.Once);
+    }
+
+    // --- CheckIn/CheckOut geofence ---
+
+    [Fact]
+    public async Task CheckIn_VendorWithinRange_RecordsLocationAndTransitionsToInProgress()
+    {
+        var vendorId = Guid.NewGuid();
+        var clientLat = -34.6037; var clientLng = -58.3816;
+        var visit = BuildVisit(vendorId, VisitStatus.Planned);
+        visit.ClientId = Guid.NewGuid();
+        var client = new Client { Id = visit.ClientId, Lat = clientLat, Lng = clientLng };
+        _visitRepo.Setup(v => v.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+        _clientRepo.Setup(c => c.GetByIdAsync(visit.ClientId, default)).ReturnsAsync(client);
+
+        var result = await _sut.CheckInAsync(visit.Id,
+            new CheckInRequest { Lat = clientLat, Lng = clientLng },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.CheckInLat.Should().Be(clientLat);
+        visit.CheckInLng.Should().Be(clientLng);
+        visit.IsOutOfRange.Should().BeFalse();
+        visit.Status.Should().Be(VisitStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task CheckIn_VendorFarFromClient_MarksOutOfRange()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Planned);
+        visit.ClientId = Guid.NewGuid();
+        var client = new Client { Id = visit.ClientId, Lat = -34.6037, Lng = -58.3816 };
+        _visitRepo.Setup(v => v.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+        _clientRepo.Setup(c => c.GetByIdAsync(visit.ClientId, default)).ReturnsAsync(client);
+
+        var result = await _sut.CheckInAsync(visit.Id,
+            new CheckInRequest { Lat = -34.5992, Lng = -58.3816 }, // ~500m north
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.IsOutOfRange.Should().BeTrue();
+        visit.OutOfRangeMeters.Should().BeInRange(490, 510);
+    }
+
+    [Fact]
+    public async Task CheckOut_RecordsLocationAndCompletes()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.InProgress);
+        _visitRepo.Setup(v => v.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.CheckOutAsync(visit.Id,
+            new CheckOutRequest { Lat = -34.6, Lng = -58.4 },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.Status.Should().Be(VisitStatus.Completed);
+        visit.CheckOutAt.Should().NotBeNull();
+        visit.CheckOutLat.Should().Be(-34.6);
+        visit.CheckOutLng.Should().Be(-58.4);
     }
 
     // --- Delete ---

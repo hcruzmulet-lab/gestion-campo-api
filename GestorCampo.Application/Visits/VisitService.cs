@@ -11,12 +11,15 @@ public class VisitService
     private readonly IVisitRepository _visits;
     private readonly IClientRepository _clients;
     private readonly IUserRepository _users;
+    private readonly GeofenceService _geofence;
+    private const int GeofenceThresholdMeters = 200;
 
-    public VisitService(IVisitRepository visits, IClientRepository clients, IUserRepository users)
+    public VisitService(IVisitRepository visits, IClientRepository clients, IUserRepository users, GeofenceService geofence)
     {
         _visits = visits;
         _clients = clients;
         _users = users;
+        _geofence = geofence;
     }
 
     public async Task<ServiceResult<VisitResponse>> CreateAsync(
@@ -95,51 +98,47 @@ public class VisitService
     }
 
     public async Task<ServiceResult<VisitResponse>> CheckInAsync(
-        Guid id, CheckInRequest request, Guid currentUserId, CancellationToken ct = default)
+        Guid id, CheckInRequest req, Guid currentUserId, UserRole role, CancellationToken ct = default)
     {
         var visit = await _visits.GetByIdAsync(id, ct);
-        if (visit == null)
-            return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
-
-        if (visit.VendorId != currentUserId)
+        if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
+        if (role == UserRole.Vendor && visit.VendorId != currentUserId)
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
-
         if (visit.Status != VisitStatus.Planned)
-            return ServiceResult<VisitResponse>.Fail("La visita no está planificada");
+            return ServiceResult<VisitResponse>.Fail("Solo se puede check-in en visitas planificadas");
 
+        visit.CheckInLat = req.Lat;
+        visit.CheckInLng = req.Lng;
         visit.Status = VisitStatus.InProgress;
-        visit.CheckinAt = DateTime.UtcNow;
-        visit.Lat = request.Lat;
-        visit.Lng = request.Lng;
-        visit.UpdatedBy = currentUserId;
 
+        var client = await _clients.GetByIdAsync(visit.ClientId, ct);
+        if (client?.Lat is double cLat && client.Lng is double cLng)
+        {
+            var (within, distance) = _geofence.Compute(cLat, cLng, req.Lat, req.Lng, GeofenceThresholdMeters);
+            visit.IsOutOfRange = !within;
+            visit.OutOfRangeMeters = distance;
+        }
+
+        visit.UpdatedBy = currentUserId;
         await _visits.UpdateAsync(visit, ct);
         return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
     }
 
     public async Task<ServiceResult<VisitResponse>> CheckOutAsync(
-        Guid id, CheckOutRequest request, Guid currentUserId, CancellationToken ct = default)
+        Guid id, CheckOutRequest req, Guid currentUserId, UserRole role, CancellationToken ct = default)
     {
         var visit = await _visits.GetByIdAsync(id, ct);
-        if (visit == null)
-            return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
-
-        if (visit.VendorId != currentUserId)
+        if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
+        if (role == UserRole.Vendor && visit.VendorId != currentUserId)
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
-
         if (visit.Status != VisitStatus.InProgress)
-            return ServiceResult<VisitResponse>.Fail("La visita no está en curso");
+            return ServiceResult<VisitResponse>.Fail("Solo se puede check-out en visitas en curso");
 
-        if (request.FinalStatus == VisitStatus.NotCompleted && string.IsNullOrWhiteSpace(request.Comment))
-            return ServiceResult<VisitResponse>.Fail("El comentario es obligatorio cuando la visita no se realiza");
-
-        visit.Status = request.FinalStatus;
-        visit.CheckoutAt = DateTime.UtcNow;
-        visit.Notes = request.Notes;
-        visit.Result = request.Result;
-        visit.Comment = request.Comment;
+        visit.CheckOutLat = req.Lat;
+        visit.CheckOutLng = req.Lng;
+        visit.CheckOutAt = DateTime.UtcNow;
+        visit.Status = VisitStatus.Completed;
         visit.UpdatedBy = currentUserId;
-
         await _visits.UpdateAsync(visit, ct);
         return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
     }
