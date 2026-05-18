@@ -18,6 +18,7 @@ public class UserResponse
     public string? PhotoUrl { get; set; }
     public Guid? SupervisorId { get; set; }
     public DateTime? LastLoginAt { get; set; }
+    public DateTime? LastVisitAt { get; set; }
     public DateTime? LockedUntil { get; set; }
     public bool EmailVerified { get; set; }
     public DateTime CreatedAt { get; set; }

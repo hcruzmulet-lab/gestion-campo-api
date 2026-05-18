@@ -64,4 +64,17 @@ public class VisitRepository : IVisitRepository
         _db.Visits.AnyAsync(
             v => v.VendorId == vendorId && v.Status == VisitStatus.InProgress,
             ct);
+
+    public async Task<Dictionary<Guid, DateTime>> GetLastCheckinByVendorAsync(
+        IEnumerable<Guid> vendorIds, CancellationToken ct = default)
+    {
+        var ids = vendorIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<Guid, DateTime>();
+        var rows = await _db.Visits
+            .Where(v => ids.Contains(v.VendorId) && v.CheckinAt.HasValue)
+            .GroupBy(v => v.VendorId)
+            .Select(g => new { VendorId = g.Key, Last = g.Max(v => v.CheckinAt!.Value) })
+            .ToListAsync(ct);
+        return rows.ToDictionary(r => r.VendorId, r => r.Last);
+    }
 }

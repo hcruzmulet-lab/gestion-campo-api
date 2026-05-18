@@ -13,4 +13,6 @@ public interface IVisitRepository
     Task AddAsync(Visit visit, CancellationToken ct = default);
     Task UpdateAsync(Visit visit, CancellationToken ct = default);
     Task<bool> HasInProgressForVendorAsync(Guid vendorId, CancellationToken ct = default);
+    /// <summary>Returns the most-recent CheckinAt per vendor for the given ids. Vendors with no check-in are absent from the dictionary.</summary>
+    Task<Dictionary<Guid, DateTime>> GetLastCheckinByVendorAsync(IEnumerable<Guid> vendorIds, CancellationToken ct = default);
 }

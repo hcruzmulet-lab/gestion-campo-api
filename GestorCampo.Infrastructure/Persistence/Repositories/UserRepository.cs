@@ -42,7 +42,9 @@ public class UserRepository : IUserRepository
     public async Task<(List<User> items, int totalCount)> GetListAsync(
         int page, int pageSize,
         UserRole? role, bool? isActive, string? search,
-        Guid? supervisorFilter, CancellationToken ct = default)
+        Guid? supervisorFilter,
+        string? orderBy, bool descending,
+        CancellationToken ct = default)
     {
         var query = _db.Users.AsQueryable();
 
@@ -56,8 +58,16 @@ public class UserRepository : IUserRepository
             query = query.Where(u => u.SupervisorId == supervisorFilter.Value);
 
         var totalCount = await query.CountAsync(ct);
+
+        query = (orderBy?.ToLowerInvariant()) switch
+        {
+            "lastlogin" => descending ? query.OrderByDescending(u => u.LastLoginAt) : query.OrderBy(u => u.LastLoginAt),
+            "createdat" => descending ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt),
+            "email"     => descending ? query.OrderByDescending(u => u.Email) : query.OrderBy(u => u.Email),
+            _           => descending ? query.OrderByDescending(u => u.Name) : query.OrderBy(u => u.Name),
+        };
+
         var items = await query
-            .OrderBy(u => u.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

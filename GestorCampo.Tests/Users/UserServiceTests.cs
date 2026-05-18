@@ -13,6 +13,7 @@ namespace GestorCampo.Tests.Users;
 public class UserServiceTests
 {
     private readonly Mock<IUserRepository> _userRepo = new();
+    private readonly Mock<IVisitRepository> _visitRepo = new();
     private readonly Mock<IPasswordService> _password = new();
     private readonly Mock<IEmailService> _email = new();
     private readonly UserService _sut;
@@ -26,7 +27,11 @@ public class UserServiceTests
             })
             .Build();
 
-        _sut = new UserService(_userRepo.Object, _password.Object, _email.Object, config);
+        _visitRepo
+            .Setup(r => r.GetLastCheckinByVendorAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, DateTime>());
+
+        _sut = new UserService(_userRepo.Object, _visitRepo.Object, _password.Object, _email.Object, config);
     }
 
     private User BuildUser(UserRole role = UserRole.Vendor, Guid? supervisorId = null) => new()
@@ -159,12 +164,12 @@ public class UserServiceTests
         _userRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
             It.IsAny<UserRole?>(), It.IsAny<bool?>(), It.IsAny<string?>(),
-            It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<User>(), 0));
 
         await _sut.GetListAsync(new UserListRequest(), Guid.NewGuid(), UserRole.SuperAdmin);
 
-        _userRepo.Verify(r => r.GetListAsync(1, 20, null, null, null, null, default), Times.Once);
+        _userRepo.Verify(r => r.GetListAsync(1, 20, null, null, null, null, null, false, default), Times.Once);
     }
 
     [Fact]
@@ -174,12 +179,12 @@ public class UserServiceTests
         _userRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
             It.IsAny<UserRole?>(), It.IsAny<bool?>(), It.IsAny<string?>(),
-            It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<User>(), 0));
 
         await _sut.GetListAsync(new UserListRequest(), supervisorId, UserRole.Supervisor);
 
-        _userRepo.Verify(r => r.GetListAsync(1, 20, null, null, null, supervisorId, default), Times.Once);
+        _userRepo.Verify(r => r.GetListAsync(1, 20, null, null, null, supervisorId, null, false, default), Times.Once);
     }
 
     [Fact]
@@ -188,12 +193,12 @@ public class UserServiceTests
         _userRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
             It.IsAny<UserRole?>(), It.IsAny<bool?>(), It.IsAny<string?>(),
-            It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<User>(), 0));
 
         await _sut.GetListAsync(new UserListRequest { PageSize = 500 }, Guid.NewGuid(), UserRole.SuperAdmin);
 
-        _userRepo.Verify(r => r.GetListAsync(1, 100, null, null, null, null, default), Times.Once);
+        _userRepo.Verify(r => r.GetListAsync(1, 100, null, null, null, null, null, false, default), Times.Once);
     }
 
     // ---- Update ----

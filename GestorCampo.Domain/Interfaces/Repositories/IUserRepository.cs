@@ -13,7 +13,9 @@ public interface IUserRepository
     Task<(List<User> items, int totalCount)> GetListAsync(
         int page, int pageSize,
         UserRole? role, bool? isActive, string? search,
-        Guid? supervisorFilter, CancellationToken ct = default);
+        Guid? supervisorFilter,
+        string? orderBy, bool descending,
+        CancellationToken ct = default);
     Task AddAsync(User user, CancellationToken ct = default);
     Task UpdateAsync(User user, CancellationToken ct = default);
 }

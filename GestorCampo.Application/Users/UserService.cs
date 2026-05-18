@@ -11,17 +11,20 @@ namespace GestorCampo.Application.Users;
 public class UserService
 {
     private readonly IUserRepository _users;
+    private readonly IVisitRepository _visits;
     private readonly IPasswordService _password;
     private readonly IEmailService _email;
     private readonly int _emailVerificationExpiryHours;
 
     public UserService(
         IUserRepository users,
+        IVisitRepository visits,
         IPasswordService password,
         IEmailService email,
         IConfiguration config)
     {
         _users = users;
+        _visits = visits;
         _password = password;
         _email = email;
         _emailVerificationExpiryHours = int.Parse(config["Auth:EmailVerificationTokenExpiryHours"]!);
@@ -88,11 +91,19 @@ public class UserService
         var (items, totalCount) = await _users.GetListAsync(
             request.Page, pageSize,
             request.Role, request.IsActive, request.Search,
-            supervisorFilter, ct);
+            supervisorFilter,
+            request.OrderBy, request.Descending,
+            ct);
+
+        // Look up last visit per vendor in a single batched query.
+        var vendorIds = items.Where(u => u.Role == UserRole.Vendor).Select(u => u.Id).ToList();
+        var lastVisits = vendorIds.Count > 0
+            ? await _visits.GetLastCheckinByVendorAsync(vendorIds, ct)
+            : new Dictionary<Guid, DateTime>();
 
         return ServiceResult<PagedResult<UserResponse>>.Ok(new PagedResult<UserResponse>
         {
-            Items = items.Select(ToResponse).ToList(),
+            Items = items.Select(u => ToResponse(u, lastVisits.TryGetValue(u.Id, out var lv) ? lv : (DateTime?)null)).ToList(),
             TotalCount = totalCount,
             Page = request.Page,
             PageSize = pageSize
@@ -167,7 +178,9 @@ public class UserService
         return ServiceResult.Ok();
     }
 
-    private static UserResponse ToResponse(User u) => new()
+    private static UserResponse ToResponse(User u) => ToResponse(u, null);
+
+    private static UserResponse ToResponse(User u, DateTime? lastVisitAt) => new()
     {
         Id = u.Id,
         Name = u.Name,
@@ -183,6 +196,7 @@ public class UserService
         PhotoUrl = u.PhotoUrl,
         SupervisorId = u.SupervisorId,
         LastLoginAt = u.LastLoginAt,
+        LastVisitAt = lastVisitAt,
         LockedUntil = u.LockedUntil,
         EmailVerified = u.EmailVerified,
         CreatedAt = u.CreatedAt,

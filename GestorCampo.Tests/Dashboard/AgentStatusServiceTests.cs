@@ -23,7 +23,7 @@ public class AgentStatusServiceTests
     {
         _userRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
-            UserRole.Vendor, true, null, null, It.IsAny<CancellationToken>()))
+            UserRole.Vendor, true, null, null, null, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync((vendors.ToList(), vendors.Length));
     }
 

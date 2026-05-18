@@ -25,7 +25,7 @@ public class AgentStatusService
         var today = DateTime.UtcNow.Date;
         var tomorrow = today.AddDays(1);
 
-        var (vendors, _) = await _users.GetListAsync(1, 200, UserRole.Vendor, true, null, null, ct);
+        var (vendors, _) = await _users.GetListAsync(1, 200, UserRole.Vendor, true, null, null, null, false, ct);
         if (vendors.Count == 0) return new List<AgentStatusDto>();
 
         var (visits, _) = await _visits.GetListAsync(1, 2000, null, null, null, today, tomorrow, ct);
