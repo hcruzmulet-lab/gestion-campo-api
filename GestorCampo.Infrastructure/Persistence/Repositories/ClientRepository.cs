@@ -11,10 +11,14 @@ public class ClientRepository : IClientRepository
     public ClientRepository(AppDbContext db) => _db = db;
 
     public Task<Client?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
-        _db.Clients.FirstOrDefaultAsync(c => c.Id == id, ct);
+        _db.Clients
+            .Include(c => c.AssignedVendor)
+            .FirstOrDefaultAsync(c => c.Id == id, ct);
 
     public Task<Client?> GetByExternalIdAsync(string externalId, CancellationToken ct = default) =>
-        _db.Clients.FirstOrDefaultAsync(c => c.ExternalId == externalId, ct);
+        _db.Clients
+            .Include(c => c.AssignedVendor)
+            .FirstOrDefaultAsync(c => c.ExternalId == externalId, ct);
 
     public Task<bool> TaxIdExistsAsync(string taxId, CancellationToken ct = default) =>
         _db.Clients.AnyAsync(c => c.TaxId == taxId, ct);
@@ -24,7 +28,7 @@ public class ClientRepository : IClientRepository
         string? search, bool? isActive, string? category,
         Guid? assignedVendorId, CancellationToken ct = default)
     {
-        var query = _db.Clients.AsQueryable();
+        var query = _db.Clients.Include(c => c.AssignedVendor).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(c => c.Name.Contains(search) || c.TaxId.Contains(search) || c.Email.Contains(search));

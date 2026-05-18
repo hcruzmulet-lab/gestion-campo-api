@@ -13,6 +13,7 @@ public class ClientResponse
     public double? Lng { get; set; }
     public string? Category { get; set; }
     public Guid? AssignedVendorId { get; set; }
+    public string? AssignedVendorName { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

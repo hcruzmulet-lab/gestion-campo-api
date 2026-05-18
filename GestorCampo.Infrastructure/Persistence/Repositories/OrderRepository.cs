@@ -14,6 +14,7 @@ public class OrderRepository : IOrderRepository
     public Task<Order?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         _db.Orders
             .Include(o => o.Client)
+            .Include(o => o.Vendor)
             .Include(o => o.Lines)
                 .ThenInclude(l => l.Product)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
@@ -23,7 +24,12 @@ public class OrderRepository : IOrderRepository
         OrderStatus? status, Guid? vendorId, Guid? clientId, Guid? visitId,
         DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        var query = _db.Orders.Include(o => o.Client).Include(o => o.Lines).AsQueryable();
+        var query = _db.Orders
+            .Include(o => o.Client)
+            .Include(o => o.Vendor)
+            .Include(o => o.Lines)
+                .ThenInclude(l => l.Product)
+            .AsQueryable();
 
         if (status.HasValue)
             query = query.Where(o => o.Status == status.Value);

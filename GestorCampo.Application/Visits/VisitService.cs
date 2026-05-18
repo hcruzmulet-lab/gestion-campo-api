@@ -46,10 +46,9 @@ public class VisitService
             vendorId = request.VendorId.Value;
         }
 
-        // HARD rule: a vendor can only have ONE in-progress visit at a time.
-        if (await _visits.HasInProgressForVendorAsync(vendorId, ct))
-            return ServiceResult<VisitResponse>.Fail(
-                "Tenés una visita en curso. Termínala antes de iniciar otra.");
+        // Planning is always allowed: the "one InProgress per vendor" rule
+        // is enforced at check-in time, not at creation. A supervisor can
+        // queue future Planned visits while the vendor has one in progress.
 
         var visit = new Visit
         {

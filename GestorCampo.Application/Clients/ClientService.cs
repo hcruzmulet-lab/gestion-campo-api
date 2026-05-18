@@ -134,6 +134,7 @@ public class ClientService
         Lng = c.Lng,
         Category = c.Category,
         AssignedVendorId = c.AssignedVendorId,
+        AssignedVendorName = c.AssignedVendor?.Name,
         CreatedAt = c.CreatedAt,
         UpdatedAt = c.UpdatedAt
     };

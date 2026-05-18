@@ -118,8 +118,9 @@ public class VisitServiceTests
     }
 
     [Fact]
-    public async Task Create_AsVendor_WithExistingInProgress_Fails()
+    public async Task Create_AsVendor_WithExistingInProgress_Succeeds()
     {
+        // Planning is always allowed; the InProgress rule applies at check-in only.
         var currentUserId = Guid.NewGuid();
         var client = BuildClient();
         _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
@@ -129,9 +130,9 @@ public class VisitServiceTests
             new CreateVisitRequest { ClientId = client.Id, PlannedAt = DateTime.UtcNow.AddDays(1) },
             currentUserId, UserRole.Vendor);
 
-        result.Succeeded.Should().BeFalse();
-        result.Error.Should().Contain("visita en curso");
-        _visitRepo.Verify(r => r.AddAsync(It.IsAny<Visit>(), default), Times.Never);
+        result.Succeeded.Should().BeTrue();
+        _visitRepo.Verify(r => r.AddAsync(It.IsAny<Visit>(), default), Times.Once);
+        _visitRepo.Verify(r => r.HasInProgressForVendorAsync(It.IsAny<Guid>(), default), Times.Never);
     }
 
     [Fact]
@@ -232,6 +233,21 @@ public class VisitServiceTests
                 v.CheckInLng == -78.5 &&
                 v.UpdatedBy == vendorId),
             default), Times.Once);
+    }
+
+    [Fact]
+    public async Task CheckIn_VendorWithExistingInProgress_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId: vendorId, status: VisitStatus.Planned);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+        _visitRepo.Setup(r => r.HasInProgressForVendorAsync(vendorId, default)).ReturnsAsync(true);
+
+        var result = await _sut.CheckInAsync(visit.Id, new CheckInRequest { Lat = -0.23, Lng = -78.5 }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("visita en curso");
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 
     // --- CheckOut ---
