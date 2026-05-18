@@ -65,7 +65,14 @@ public class OrderRepository : IOrderRepository
 
     public async Task UpdateAsync(Order order, CancellationToken ct = default)
     {
-        _db.Orders.Update(order);
+        // Entities loaded via GetByIdAsync are already tracked. Calling
+        // .Update() on a tracked entity that just mutated its Lines collection
+        // makes EF emit an UPDATE whose WHERE clause silently fails to match
+        // (DbUpdateConcurrencyException, "0 rows affected"). Only call Update
+        // when the entity is detached.
+        var entry = _db.Entry(order);
+        if (entry.State == EntityState.Detached)
+            _db.Orders.Update(order);
         await _db.SaveChangesAsync(ct);
     }
 }
