@@ -15,4 +15,11 @@ public interface IOrderRepository
         DateTime from, DateTime to, CancellationToken ct = default);
     Task AddAsync(Order order, CancellationToken ct = default);
     Task UpdateAsync(Order order, CancellationToken ct = default);
+    /// <summary>
+    /// Atomically replaces a Draft order's lines: deletes all existing lines
+    /// and inserts the provided ones. Use this instead of mutating Order.Lines
+    /// directly on a tracked entity (which leaves orphans / triggers
+    /// concurrency exceptions on save).
+    /// </summary>
+    Task ReplaceLinesAsync(Order order, IEnumerable<OrderLine> newLines, Guid updatedBy, CancellationToken ct = default);
 }

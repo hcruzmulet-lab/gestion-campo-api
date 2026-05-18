@@ -129,11 +129,11 @@ public class OrderService
             });
         }
 
-        order.Lines.Clear();
-        foreach (var l in newLines) order.Lines.Add(l);
-        order.UpdatedBy = currentUserId;
-        await _orders.UpdateAsync(order, ct);
-        return ServiceResult<OrderResponse>.Ok(ToResponse(order));
+        await _orders.ReplaceLinesAsync(order, newLines, currentUserId, ct);
+
+        // Refresh entity so the returned response reflects the new lines.
+        var refreshed = await _orders.GetByIdAsync(order.Id, ct);
+        return ServiceResult<OrderResponse>.Ok(ToResponse(refreshed ?? order));
     }
 
     public async Task<ServiceResult<OrderResponse>> SendAsync(

@@ -361,14 +361,15 @@ public class OrderServiceTests
             vendorId, UserRole.Vendor);
 
         result.Succeeded.Should().BeTrue();
-        _orderRepo.Verify(r => r.UpdateAsync(
-            It.Is<Order>(o =>
-                o.Lines.Count == 1 &&
-                o.Lines[0].ProductId == newProductId &&
-                o.Lines[0].Quantity == 3 &&
-                o.Lines[0].UnitPrice == 12.50m &&
-                o.Lines[0].Discount == 0.10m &&
-                o.UpdatedBy == vendorId),
+        _orderRepo.Verify(r => r.ReplaceLinesAsync(
+            order,
+            It.Is<IEnumerable<OrderLine>>(lines =>
+                lines.Count() == 1 &&
+                lines.First().ProductId == newProductId &&
+                lines.First().Quantity == 3 &&
+                lines.First().UnitPrice == 12.50m &&
+                lines.First().Discount == 0.10m),
+            vendorId,
             default), Times.Once);
     }
 

@@ -75,4 +75,31 @@ public class OrderRepository : IOrderRepository
             _db.Orders.Update(order);
         await _db.SaveChangesAsync(ct);
     }
+
+    public async Task ReplaceLinesAsync(
+        Order order, IEnumerable<OrderLine> newLines, Guid updatedBy, CancellationToken ct = default)
+    {
+        // Load existing lines into the tracker explicitly, then RemoveRange
+        // so EF emits DELETE statements instead of trying to UPDATE orphans.
+        var existing = await _db.Set<OrderLine>()
+            .Where(l => l.OrderId == order.Id)
+            .ToListAsync(ct);
+        _db.Set<OrderLine>().RemoveRange(existing);
+
+        foreach (var l in newLines)
+        {
+            l.OrderId = order.Id;
+            // Detach product navigation so EF doesn't try to insert it.
+            l.Product = null!;
+            _db.Set<OrderLine>().Add(l);
+        }
+
+        var entry = _db.Entry(order);
+        order.UpdatedBy = updatedBy;
+        order.UpdatedAt = DateTime.UtcNow;
+        if (entry.State == EntityState.Detached)
+            _db.Orders.Update(order);
+
+        await _db.SaveChangesAsync(ct);
+    }
 }
