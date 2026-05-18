@@ -19,10 +19,10 @@ public class OrderRepository : IOrderRepository
 
     public async Task<(List<Order> items, int totalCount)> GetListAsync(
         int page, int pageSize,
-        OrderStatus? status, Guid? vendorId, Guid? clientId,
+        OrderStatus? status, Guid? vendorId, Guid? clientId, Guid? visitId,
         DateTime? from, DateTime? to, CancellationToken ct = default)
     {
-        var query = _db.Orders.AsQueryable();
+        var query = _db.Orders.Include(o => o.Lines).AsQueryable();
 
         if (status.HasValue)
             query = query.Where(o => o.Status == status.Value);
@@ -30,6 +30,8 @@ public class OrderRepository : IOrderRepository
             query = query.Where(o => o.VendorId == vendorId.Value);
         if (clientId.HasValue)
             query = query.Where(o => o.ClientId == clientId.Value);
+        if (visitId.HasValue)
+            query = query.Where(o => o.VisitId == visitId.Value);
         if (from.HasValue)
             query = query.Where(o => o.CreatedAt >= from.Value);
         if (to.HasValue)

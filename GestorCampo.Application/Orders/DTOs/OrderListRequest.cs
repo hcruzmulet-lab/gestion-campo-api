@@ -9,6 +9,7 @@ public class OrderListRequest
     public OrderStatus? Status { get; set; }
     public Guid? VendorId { get; set; }
     public Guid? ClientId { get; set; }
+    public Guid? VisitId { get; set; }
     public DateTime? From { get; set; }
     public DateTime? To { get; set; }
 }

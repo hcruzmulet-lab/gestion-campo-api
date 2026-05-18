@@ -84,7 +84,7 @@ public class OrderService
 
         var (items, totalCount) = await _orders.GetListAsync(
             request.Page, pageSize,
-            request.Status, vendorFilter, request.ClientId,
+            request.Status, vendorFilter, request.ClientId, request.VisitId,
             request.From, request.To, ct);
 
         return ServiceResult<PagedResult<OrderResponse>>.Ok(new PagedResult<OrderResponse>

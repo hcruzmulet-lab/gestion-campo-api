@@ -22,7 +22,7 @@ public class DashboardService
         var tomorrow = today.AddDays(1);
 
         var (visits, _) = await _visits.GetListAsync(1, 1000, null, null, null, today, tomorrow, ct);
-        var (orders, _) = await _orders.GetListAsync(1, 1000, null, null, null, today, tomorrow, ct);
+        var (orders, _) = await _orders.GetListAsync(1, 1000, null, null, null, null, today, tomorrow, ct);
         var approvedOrders = await _orders.GetApprovedWithLinesAsync(today, tomorrow, ct);
 
         var doneCount = visits.Count(v => v.Status is VisitStatus.Completed or VisitStatus.NotCompleted);

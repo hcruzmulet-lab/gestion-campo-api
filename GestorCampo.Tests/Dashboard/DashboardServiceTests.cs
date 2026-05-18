@@ -31,7 +31,7 @@ public class DashboardServiceTests
     {
         _orderRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
-            It.IsAny<OrderStatus?>(), It.IsAny<Guid?>(), It.IsAny<Guid?>(),
+            It.IsAny<OrderStatus?>(), It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<Guid?>(),
             It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((orders.ToList(), orders.Length));
     }

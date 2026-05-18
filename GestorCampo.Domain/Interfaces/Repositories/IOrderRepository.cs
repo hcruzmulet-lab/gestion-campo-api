@@ -8,7 +8,7 @@ public interface IOrderRepository
     Task<Order?> GetByIdAsync(Guid id, CancellationToken ct = default); // includes Lines + Product
     Task<(List<Order> items, int totalCount)> GetListAsync(
         int page, int pageSize,
-        OrderStatus? status, Guid? vendorId, Guid? clientId,
+        OrderStatus? status, Guid? vendorId, Guid? clientId, Guid? visitId,
         DateTime? from, DateTime? to, CancellationToken ct = default);
     /// <summary>Returns Approved orders in the given UTC range, including their Lines.</summary>
     Task<List<Order>> GetApprovedWithLinesAsync(
