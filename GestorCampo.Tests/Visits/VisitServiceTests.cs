@@ -368,4 +368,140 @@ public class VisitServiceTests
             It.Is<Visit>(v => v.DeletedAt.HasValue && !v.IsActive),
             default), Times.Once);
     }
+
+    // --- MarkNotCompleted ---
+
+    [Fact]
+    public async Task MarkNotCompleted_NotFound_Fails()
+    {
+        _visitRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Visit?)null);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            Guid.NewGuid(),
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.ClientClosed },
+            Guid.NewGuid(), UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Be("Visita no encontrada");
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_VendorNotOwner_Fails()
+    {
+        var visit = BuildVisit(vendorId: Guid.NewGuid(), status: VisitStatus.Planned);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.ClientClosed },
+            Guid.NewGuid(), UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("acceso");
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_FromCompleted_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.ClientClosed },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("estado");
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_ReasonOtherWithoutNote_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Planned);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.Other, ReasonNote = null },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("nota");
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_FromPlanned_SetsNotCompleted()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Planned);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.ClientClosed },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        _visitRepo.Verify(r => r.UpdateAsync(
+            It.Is<Visit>(v =>
+                v.Status == VisitStatus.NotCompleted &&
+                v.NotCompletedReason == VisitNotCompletedReason.ClientClosed),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_FromInProgress_SetsCheckoutTimestamp()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.InProgress);
+        visit.CheckinAt = DateTime.UtcNow.AddMinutes(-10);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest
+            {
+                Reason = VisitNotCompletedReason.ClientRefused,
+                Lat = -0.23, Lng = -78.5
+            },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        _visitRepo.Verify(r => r.UpdateAsync(
+            It.Is<Visit>(v =>
+                v.Status == VisitStatus.NotCompleted &&
+                v.NotCompletedReason == VisitNotCompletedReason.ClientRefused &&
+                v.CheckoutAt.HasValue &&
+                v.CheckOutAt.HasValue &&
+                v.CheckOutLat == -0.23 &&
+                v.CheckOutLng == -78.5),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_ReasonOtherWithNote_Succeeds()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Planned);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest
+            {
+                Reason = VisitNotCompletedReason.Other,
+                ReasonNote = "Cliente avisó por WhatsApp"
+            },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        _visitRepo.Verify(r => r.UpdateAsync(
+            It.Is<Visit>(v =>
+                v.NotCompletedReason == VisitNotCompletedReason.Other &&
+                v.NotCompletedReasonNote == "Cliente avisó por WhatsApp"),
+            default), Times.Once);
+    }
 }

@@ -28,5 +28,7 @@ public class Visit : BaseEntity
     public DateTime? CheckOutAt { get; set; }
     public bool IsOutOfRange { get; set; }
     public int? OutOfRangeMeters { get; set; }
+    public VisitNotCompletedReason? NotCompletedReason { get; set; }
+    public string? NotCompletedReasonNote { get; set; }
     public List<VisitAttachment> Attachments { get; set; } = new();
 }

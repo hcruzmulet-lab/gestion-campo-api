@@ -112,6 +112,11 @@ public class VisitService
         if (visit.Status != VisitStatus.Planned)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-in en visitas planificadas");
 
+        // HARD rule: a vendor can only have ONE in-progress visit at a time.
+        if (await _visits.HasInProgressForVendorAsync(visit.VendorId, ct))
+            return ServiceResult<VisitResponse>.Fail(
+                "Tenés una visita en curso. Termínala antes de iniciar otra.");
+
         var now = DateTime.UtcNow;
         visit.CheckInLat = req.Lat;
         visit.CheckInLng = req.Lng;
@@ -168,6 +173,38 @@ public class VisitService
         return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
     }
 
+    public async Task<ServiceResult<VisitResponse>> MarkNotCompletedAsync(
+        Guid id, MarkNotCompletedRequest req, Guid currentUserId, UserRole role, CancellationToken ct = default)
+    {
+        var visit = await _visits.GetByIdAsync(id, ct);
+        if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
+        if (role == UserRole.Vendor && visit.VendorId != currentUserId)
+            return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
+        if (visit.Status != VisitStatus.Planned && visit.Status != VisitStatus.InProgress)
+            return ServiceResult<VisitResponse>.Fail(
+                "Solo se puede marcar como no realizada una visita en estado planificada o en curso");
+        if (req.Reason == VisitNotCompletedReason.Other && string.IsNullOrWhiteSpace(req.ReasonNote))
+            return ServiceResult<VisitResponse>.Fail("Debe agregar una nota cuando el motivo es Otro");
+
+        var wasInProgress = visit.Status == VisitStatus.InProgress;
+        var now = DateTime.UtcNow;
+        visit.NotCompletedReason = req.Reason;
+        visit.NotCompletedReasonNote = string.IsNullOrWhiteSpace(req.ReasonNote) ? null : req.ReasonNote.Trim();
+        visit.Status = VisitStatus.NotCompleted;
+
+        if (wasInProgress)
+        {
+            visit.CheckoutAt = now;
+            visit.CheckOutAt = now;
+            if (req.Lat.HasValue) visit.CheckOutLat = req.Lat;
+            if (req.Lng.HasValue) visit.CheckOutLng = req.Lng;
+        }
+
+        visit.UpdatedBy = currentUserId;
+        await _visits.UpdateAsync(visit, ct);
+        return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
+    }
+
     public async Task<ServiceResult> DeleteAsync(
         Guid id, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
@@ -210,6 +247,8 @@ public class VisitService
         CheckOutLng = v.CheckOutLng,
         CheckOutAtUtc = v.CheckOutAt,
         IsOutOfRange = v.IsOutOfRange,
-        OutOfRangeMeters = v.OutOfRangeMeters
+        OutOfRangeMeters = v.OutOfRangeMeters,
+        NotCompletedReason = v.NotCompletedReason,
+        NotCompletedReasonNote = v.NotCompletedReasonNote
     };
 }

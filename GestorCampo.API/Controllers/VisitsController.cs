@@ -100,6 +100,26 @@ public class VisitsController : ControllerBase
         return Ok(result.Data);
     }
 
+    [HttpPut("{id:guid}/not-completed")]
+    [ProducesResponseType(typeof(VisitResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MarkNotCompleted(
+        Guid id, [FromBody] MarkNotCompletedRequest request, CancellationToken ct)
+    {
+        var result = await _visits.MarkNotCompletedAsync(id, request, CurrentUserId, CurrentRole, ct);
+        if (!result.Succeeded)
+        {
+            if (result.Error!.Contains("acceso")) return Forbid();
+            if (result.Error.Contains("no encontrada")) return NotFound(new { error = result.Error });
+            if (result.Error.Contains("nota")) return BadRequest(new { error = result.Error });
+            return Conflict(new { error = result.Error });
+        }
+        return Ok(result.Data);
+    }
+
     [HttpPut("{id:guid}")]
     [ProducesResponseType(typeof(VisitResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

@@ -30,4 +30,6 @@ public class VisitResponse
     public DateTime? CheckOutAtUtc { get; set; }
     public bool IsOutOfRange { get; set; }
     public int? OutOfRangeMeters { get; set; }
+    public VisitNotCompletedReason? NotCompletedReason { get; set; }
+    public string? NotCompletedReasonNote { get; set; }
 }
