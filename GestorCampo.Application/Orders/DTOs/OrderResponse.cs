@@ -7,6 +7,7 @@ public class OrderResponse
     public Guid Id { get; set; }
     public Guid ClientId { get; set; }
     public string ClientName { get; set; } = string.Empty;
+    public string? ClientAddress { get; set; }
     public Guid VendorId { get; set; }
     public string VendorName { get; set; } = string.Empty;
     public Guid? VisitId { get; set; }

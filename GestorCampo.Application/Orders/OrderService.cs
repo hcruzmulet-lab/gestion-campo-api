@@ -168,6 +168,7 @@ public class OrderService
         Id = o.Id,
         ClientId = o.ClientId,
         ClientName = o.Client?.Name ?? string.Empty,
+        ClientAddress = o.Client?.Address,
         VendorId = o.VendorId,
         VendorName = o.Vendor?.Name ?? string.Empty,
         VisitId = o.VisitId,
