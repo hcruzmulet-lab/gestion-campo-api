@@ -68,6 +68,27 @@ public class OrdersController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result.Data);
     }
 
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateOrderRequest request, CancellationToken ct)
+    {
+        var result = await _orders.UpdateAsync(id, request, CurrentUserId, CurrentRole, ct);
+        if (!result.Succeeded)
+        {
+            if (result.Error!.Contains("acceso")) return Forbid();
+            if (result.Error.Contains("al menos") || result.Error.Contains("línea"))
+                return BadRequest(new { error = result.Error });
+            if (result.Error.Contains("no encontrado") || result.Error.Contains("no encontrada"))
+                return NotFound(new { error = result.Error });
+            return Conflict(new { error = result.Error });
+        }
+        return Ok(result.Data);
+    }
+
     [HttpPost("{id:guid}/send")]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

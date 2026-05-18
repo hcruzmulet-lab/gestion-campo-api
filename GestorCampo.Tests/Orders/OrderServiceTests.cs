@@ -254,6 +254,124 @@ public class OrderServiceTests
             default), Times.Once);
     }
 
+    // --- Update (Draft only) ---
+
+    [Fact]
+    public async Task Update_NotFound_Fails()
+    {
+        _orderRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Order?)null);
+
+        var result = await _sut.UpdateAsync(
+            Guid.NewGuid(),
+            new UpdateOrderRequest { Lines = new() { new() { ProductId = Guid.NewGuid(), Quantity = 1, UnitPrice = 1m, Discount = 0m } } },
+            Guid.NewGuid(), UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("no encontrada");
+    }
+
+    [Fact]
+    public async Task Update_VendorNotOwner_Fails()
+    {
+        var order = BuildOrder(vendorId: Guid.NewGuid(), status: OrderStatus.Draft);
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
+
+        var result = await _sut.UpdateAsync(
+            order.Id,
+            new UpdateOrderRequest { Lines = new() { new() { ProductId = Guid.NewGuid(), Quantity = 1, UnitPrice = 1m, Discount = 0m } } },
+            Guid.NewGuid(), UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("acceso");
+    }
+
+    [Fact]
+    public async Task Update_NotDraft_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var order = BuildOrder(vendorId: vendorId, status: OrderStatus.Sent);
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
+
+        var result = await _sut.UpdateAsync(
+            order.Id,
+            new UpdateOrderRequest { Lines = new() { new() { ProductId = Guid.NewGuid(), Quantity = 1, UnitPrice = 1m, Discount = 0m } } },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("borrador");
+    }
+
+    [Fact]
+    public async Task Update_NoLines_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var order = BuildOrder(vendorId: vendorId, status: OrderStatus.Draft);
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
+
+        var result = await _sut.UpdateAsync(
+            order.Id,
+            new UpdateOrderRequest { Lines = new() },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("línea");
+    }
+
+    [Fact]
+    public async Task Update_ProductNotFound_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var order = BuildOrder(vendorId: vendorId, status: OrderStatus.Draft);
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
+        _productRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Product?)null);
+
+        var result = await _sut.UpdateAsync(
+            order.Id,
+            new UpdateOrderRequest { Lines = new() { new() { ProductId = Guid.NewGuid(), Quantity = 1, UnitPrice = 1m, Discount = 0m } } },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("Producto");
+    }
+
+    [Fact]
+    public async Task Update_ValidDraft_ReplacesAllLines()
+    {
+        var vendorId = Guid.NewGuid();
+        var order = BuildOrder(vendorId: vendorId, status: OrderStatus.Draft);
+        order.Lines = new List<OrderLine>
+        {
+            new() { Id = Guid.NewGuid(), ProductId = Guid.NewGuid(), Quantity = 99, UnitPrice = 9m, Discount = 0m },
+            new() { Id = Guid.NewGuid(), ProductId = Guid.NewGuid(), Quantity = 50, UnitPrice = 5m, Discount = 0m },
+        };
+        var newProductId = Guid.NewGuid();
+        var product = new Product { Id = newProductId, Name = "X", Price = 10m, IsActive = true };
+        _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
+        _productRepo.Setup(r => r.GetByIdAsync(newProductId, default)).ReturnsAsync(product);
+
+        var result = await _sut.UpdateAsync(
+            order.Id,
+            new UpdateOrderRequest
+            {
+                Lines = new()
+                {
+                    new() { ProductId = newProductId, Quantity = 3, UnitPrice = 12.50m, Discount = 0.10m },
+                },
+            },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        _orderRepo.Verify(r => r.UpdateAsync(
+            It.Is<Order>(o =>
+                o.Lines.Count == 1 &&
+                o.Lines[0].ProductId == newProductId &&
+                o.Lines[0].Quantity == 3 &&
+                o.Lines[0].UnitPrice == 12.50m &&
+                o.Lines[0].Discount == 0.10m &&
+                o.UpdatedBy == vendorId),
+            default), Times.Once);
+    }
+
     // --- Deliver ---
 
     [Fact]

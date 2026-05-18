@@ -96,6 +96,46 @@ public class OrderService
         });
     }
 
+    public async Task<ServiceResult<OrderResponse>> UpdateAsync(
+        Guid id, UpdateOrderRequest request, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
+    {
+        var order = await _orders.GetByIdAsync(id, ct);
+        if (order == null)
+            return ServiceResult<OrderResponse>.Fail("Orden no encontrada");
+
+        if (currentRole == UserRole.Vendor && order.VendorId != currentUserId)
+            return ServiceResult<OrderResponse>.Fail("No tiene acceso a esta orden");
+
+        if (order.Status != OrderStatus.Draft)
+            return ServiceResult<OrderResponse>.Fail("Solo se pueden editar órdenes en borrador");
+
+        if (request.Lines == null || request.Lines.Count == 0)
+            return ServiceResult<OrderResponse>.Fail("La orden debe tener al menos una línea");
+
+        var newLines = new List<OrderLine>();
+        foreach (var lineReq in request.Lines)
+        {
+            var product = await _products.GetByIdAsync(lineReq.ProductId, ct);
+            if (product == null)
+                return ServiceResult<OrderResponse>.Fail($"Producto no encontrado: {lineReq.ProductId}");
+
+            newLines.Add(new OrderLine
+            {
+                ProductId = lineReq.ProductId,
+                Product = product,
+                Quantity = lineReq.Quantity,
+                UnitPrice = lineReq.UnitPrice,
+                Discount = lineReq.Discount
+            });
+        }
+
+        order.Lines.Clear();
+        foreach (var l in newLines) order.Lines.Add(l);
+        order.UpdatedBy = currentUserId;
+        await _orders.UpdateAsync(order, ct);
+        return ServiceResult<OrderResponse>.Ok(ToResponse(order));
+    }
+
     public async Task<ServiceResult<OrderResponse>> SendAsync(
         Guid id, Guid currentUserId, CancellationToken ct = default)
     {
