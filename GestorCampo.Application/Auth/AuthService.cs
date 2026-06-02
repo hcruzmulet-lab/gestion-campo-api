@@ -159,6 +159,24 @@ public class AuthService
         return ServiceResult.Ok();
     }
 
+    public async Task<ServiceResult> ChangePasswordAsync(
+        Guid currentUserId, ChangePasswordRequest request, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+            return ServiceResult.Fail("La nueva contraseña debe tener al menos 8 caracteres");
+
+        var user = await _users.GetByIdAsync(currentUserId, ct);
+        if (user == null) return ServiceResult.Fail("Usuario no encontrado");
+
+        if (!_password.Verify(request.CurrentPassword, user.PasswordHash))
+            return ServiceResult.Fail("La contraseña actual es incorrecta");
+
+        user.PasswordHash = _password.Hash(request.NewPassword);
+        user.UpdatedBy = currentUserId;
+        await _users.UpdateAsync(user, ct);
+        return ServiceResult.Ok();
+    }
+
     public async Task<ServiceResult> VerifyEmailAsync(VerifyEmailRequest request, CancellationToken ct = default)
     {
         var user = await _users.GetByEmailVerificationTokenAsync(request.Token, ct);

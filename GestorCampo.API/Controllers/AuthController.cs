@@ -1,4 +1,5 @@
 // GestorCampo.API/Controllers/AuthController.cs
+using System.IdentityModel.Tokens.Jwt;
 using GestorCampo.Application.Auth;
 using GestorCampo.Application.Auth.DTOs;
 using GestorCampo.Application.Common;
@@ -68,6 +69,19 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken ct)
     {
         var result = await _auth.ResetPasswordAsync(request, ct);
+        if (!result.Succeeded)
+            return BadRequest(new { error = result.Error });
+        return Ok(new MessageResponse { Message = "Contraseña actualizada correctamente" });
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request, CancellationToken ct)
+    {
+        var currentUserId = Guid.Parse(User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value);
+        var result = await _auth.ChangePasswordAsync(currentUserId, request, ct);
         if (!result.Succeeded)
             return BadRequest(new { error = result.Error });
         return Ok(new MessageResponse { Message = "Contraseña actualizada correctamente" });
