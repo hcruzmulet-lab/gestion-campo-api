@@ -9,7 +9,9 @@ public interface IVisitRepository
     Task<(List<Visit> items, int totalCount)> GetListAsync(
         int page, int pageSize,
         VisitStatus? status, Guid? vendorId, Guid? clientId,
-        DateTime? from, DateTime? to, CancellationToken ct = default);
+        DateTime? from, DateTime? to,
+        Guid? supervisorOfVendor,
+        CancellationToken ct = default);
     Task AddAsync(Visit visit, CancellationToken ct = default);
     Task UpdateAsync(Visit visit, CancellationToken ct = default);
     Task<bool> HasInProgressForVendorAsync(Guid vendorId, CancellationToken ct = default);

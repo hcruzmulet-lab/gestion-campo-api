@@ -32,7 +32,9 @@ public class AgentStatusServiceTests
         _visitRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
             null, null, null,
-            It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+            It.IsAny<Guid?>(),
+            It.IsAny<CancellationToken>()))
             .ReturnsAsync((visits.ToList(), visits.Length));
     }
 
@@ -50,7 +52,7 @@ public class AgentStatusServiceTests
         SetupVisits();
         SetupLastLocations(new Dictionary<Guid, TrackingPoint>());
 
-        var result = await _sut.GetAgentStatusesAsync();
+        var result = await _sut.GetAgentStatusesAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Should().BeEmpty();
     }
@@ -67,7 +69,7 @@ public class AgentStatusServiceTests
         );
         SetupLastLocations(new Dictionary<Guid, TrackingPoint>());
 
-        var result = await _sut.GetAgentStatusesAsync();
+        var result = await _sut.GetAgentStatusesAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         var agent = result.Should().ContainSingle().Subject;
         agent.TotalVisitsToday.Should().Be(3);
@@ -85,7 +87,7 @@ public class AgentStatusServiceTests
         );
         SetupLastLocations(new Dictionary<Guid, TrackingPoint>());
 
-        var result = await _sut.GetAgentStatusesAsync();
+        var result = await _sut.GetAgentStatusesAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Single().CurrentVisitClient.Should().Be("Supermercado XYZ");
     }
@@ -102,7 +104,7 @@ public class AgentStatusServiceTests
             [vendorId] = new TrackingPoint { VendorId = vendorId, Lat = -34.603, Lng = -58.381, CapturedAt = capturedAt }
         });
 
-        var result = await _sut.GetAgentStatusesAsync();
+        var result = await _sut.GetAgentStatusesAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         var agent = result.Single();
         agent.LastLocation.Should().NotBeNull();
@@ -119,7 +121,7 @@ public class AgentStatusServiceTests
         SetupVisits();
         SetupLastLocations(new Dictionary<Guid, TrackingPoint>());
 
-        var result = await _sut.GetAgentStatusesAsync();
+        var result = await _sut.GetAgentStatusesAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Single().LastLocation.Should().BeNull();
     }

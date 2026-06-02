@@ -16,14 +16,23 @@ public class DashboardService
         _orders = orders;
     }
 
-    public async Task<ServiceResult<DashboardStatsResponse>> GetStatsAsync(CancellationToken ct = default)
+    public async Task<ServiceResult<DashboardStatsResponse>> GetStatsAsync(
+        Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         var today = DateTime.UtcNow.Date;
         var tomorrow = today.AddDays(1);
 
-        var (visits, _) = await _visits.GetListAsync(1, 1000, null, null, null, today, tomorrow, ct);
-        var (orders, _) = await _orders.GetListAsync(1, 1000, null, null, null, null, today, tomorrow, ct);
+        var vendorFilter = currentRole == UserRole.Vendor ? currentUserId : (Guid?)null;
+        var supervisorFilter = currentRole == UserRole.Supervisor ? currentUserId : (Guid?)null;
+
+        var (visits, _) = await _visits.GetListAsync(
+            1, 1000, null, vendorFilter, null, today, tomorrow, supervisorFilter, ct);
+        var (orders, _) = await _orders.GetListAsync(
+            1, 1000, null, vendorFilter, null, null, today, tomorrow, supervisorFilter, ct);
+
+        // Approved orders for the day, then scoped in-memory.
         var approvedOrders = await _orders.GetApprovedWithLinesAsync(today, tomorrow, ct);
+        approvedOrders = ScopeApprovedOrders(approvedOrders, vendorFilter, supervisorFilter, currentUserId);
 
         var doneCount = visits.Count(v => v.Status is VisitStatus.Completed or VisitStatus.NotCompleted);
         var approvedValue = approvedOrders
@@ -58,5 +67,20 @@ public class DashboardService
         };
 
         return ServiceResult<DashboardStatsResponse>.Ok(stats);
+    }
+
+    // GetApprovedWithLinesAsync currently does not accept role scoping, so we
+    // filter in-memory. Cheap for daily snapshots; revisit if volume grows.
+    private static List<Domain.Entities.Order> ScopeApprovedOrders(
+        List<Domain.Entities.Order> orders,
+        Guid? vendorFilter,
+        Guid? supervisorFilter,
+        Guid currentUserId)
+    {
+        if (vendorFilter.HasValue)
+            return orders.Where(o => o.VendorId == vendorFilter.Value).ToList();
+        if (supervisorFilter.HasValue)
+            return orders.Where(o => o.Vendor != null && o.Vendor.SupervisorId == supervisorFilter.Value).ToList();
+        return orders;
     }
 }

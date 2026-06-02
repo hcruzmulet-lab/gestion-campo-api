@@ -57,7 +57,7 @@ public class ClientsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Create([FromBody] CreateClientRequest request, CancellationToken ct)
     {
-        var result = await _clients.CreateAsync(request, CurrentUserId, ct);
+        var result = await _clients.CreateAsync(request, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded)
         {
             if (result.Error!.Contains("vendedor")) return BadRequest(new { error = result.Error });
@@ -73,7 +73,7 @@ public class ClientsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateClientRequest request, CancellationToken ct)
     {
-        var result = await _clients.UpdateAsync(id, request, CurrentUserId, ct);
+        var result = await _clients.UpdateAsync(id, request, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded)
         {
             if (result.Error!.Contains("vendedor")) return BadRequest(new { error = result.Error });
@@ -88,7 +88,7 @@ public class ClientsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var result = await _clients.DeleteAsync(id, CurrentUserId, ct);
+        var result = await _clients.DeleteAsync(id, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded) return NotFound(new { error = result.Error });
         return NoContent();
     }

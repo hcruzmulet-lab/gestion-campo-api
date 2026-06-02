@@ -95,7 +95,7 @@ public class OrdersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Send(Guid id, CancellationToken ct)
     {
-        var result = await _orders.SendAsync(id, CurrentUserId, ct);
+        var result = await _orders.SendAsync(id, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded)
         {
             if (result.Error!.Contains("no encontrada")) return NotFound(new { error = result.Error });
@@ -111,7 +111,7 @@ public class OrdersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Approve(Guid id, CancellationToken ct)
     {
-        var result = await _orders.ApproveAsync(id, CurrentUserId, ct);
+        var result = await _orders.ApproveAsync(id, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded)
         {
             if (result.Error!.Contains("no encontrada")) return NotFound(new { error = result.Error });
@@ -127,7 +127,7 @@ public class OrdersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectOrderRequest request, CancellationToken ct)
     {
-        var result = await _orders.RejectAsync(id, request, CurrentUserId, ct);
+        var result = await _orders.RejectAsync(id, request, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded)
         {
             if (result.Error!.Contains("no encontrada")) return NotFound(new { error = result.Error });
@@ -142,7 +142,7 @@ public class OrdersController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> Deliver(Guid id, CancellationToken ct)
     {
-        var result = await _orders.DeliverAsync(id, CurrentUserId, ct);
+        var result = await _orders.DeliverAsync(id, CurrentUserId, CurrentRole, ct);
         if (!result.Succeeded)
         {
             if (result.Error!.Contains("no encontrada")) return NotFound(new { error = result.Error });

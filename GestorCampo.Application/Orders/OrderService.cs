@@ -70,7 +70,7 @@ public class OrderService
         if (order == null)
             return ServiceResult<OrderResponse>.Fail("Orden no encontrada");
 
-        if (currentRole == UserRole.Vendor && order.VendorId != currentUserId)
+        if (!HasAccess(order, currentUserId, currentRole))
             return ServiceResult<OrderResponse>.Fail("No tiene acceso a esta orden");
 
         return ServiceResult<OrderResponse>.Ok(ToResponse(order));
@@ -81,11 +81,14 @@ public class OrderService
     {
         var pageSize = Math.Min(request.PageSize, 100);
         var vendorFilter = currentRole == UserRole.Vendor ? currentUserId : request.VendorId;
+        var supervisorFilter = currentRole == UserRole.Supervisor ? currentUserId : (Guid?)null;
 
         var (items, totalCount) = await _orders.GetListAsync(
             request.Page, pageSize,
             request.Status, vendorFilter, request.ClientId, request.VisitId,
-            request.From, request.To, ct);
+            request.From, request.To,
+            supervisorFilter,
+            ct);
 
         return ServiceResult<PagedResult<OrderResponse>>.Ok(new PagedResult<OrderResponse>
         {
@@ -103,7 +106,7 @@ public class OrderService
         if (order == null)
             return ServiceResult<OrderResponse>.Fail("Orden no encontrada");
 
-        if (currentRole == UserRole.Vendor && order.VendorId != currentUserId)
+        if (!HasAccess(order, currentUserId, currentRole))
             return ServiceResult<OrderResponse>.Fail("No tiene acceso a esta orden");
 
         if (order.Status != OrderStatus.Draft)
@@ -137,11 +140,14 @@ public class OrderService
     }
 
     public async Task<ServiceResult<OrderResponse>> SendAsync(
-        Guid id, Guid currentUserId, CancellationToken ct = default)
+        Guid id, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         var order = await _orders.GetByIdAsync(id, ct);
         if (order == null)
             return ServiceResult<OrderResponse>.Fail("Orden no encontrada");
+
+        if (!HasAccess(order, currentUserId, currentRole))
+            return ServiceResult<OrderResponse>.Fail("No tiene acceso a esta orden");
 
         if (order.Status != OrderStatus.Draft)
             return ServiceResult<OrderResponse>.Fail("Solo se pueden enviar órdenes en borrador");
@@ -153,11 +159,14 @@ public class OrderService
     }
 
     public async Task<ServiceResult<OrderResponse>> ApproveAsync(
-        Guid id, Guid currentUserId, CancellationToken ct = default)
+        Guid id, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         var order = await _orders.GetByIdAsync(id, ct);
         if (order == null)
             return ServiceResult<OrderResponse>.Fail("Orden no encontrada");
+
+        if (!HasAccess(order, currentUserId, currentRole))
+            return ServiceResult<OrderResponse>.Fail("No tiene acceso a esta orden");
 
         if (order.Status != OrderStatus.Sent)
             return ServiceResult<OrderResponse>.Fail("Solo se pueden aprobar órdenes enviadas");
@@ -170,11 +179,14 @@ public class OrderService
     }
 
     public async Task<ServiceResult<OrderResponse>> RejectAsync(
-        Guid id, RejectOrderRequest request, Guid currentUserId, CancellationToken ct = default)
+        Guid id, RejectOrderRequest request, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         var order = await _orders.GetByIdAsync(id, ct);
         if (order == null)
             return ServiceResult<OrderResponse>.Fail("Orden no encontrada");
+
+        if (!HasAccess(order, currentUserId, currentRole))
+            return ServiceResult<OrderResponse>.Fail("No tiene acceso a esta orden");
 
         if (order.Status != OrderStatus.Sent)
             return ServiceResult<OrderResponse>.Fail("Solo se pueden rechazar órdenes enviadas");
@@ -187,11 +199,14 @@ public class OrderService
     }
 
     public async Task<ServiceResult<OrderResponse>> DeliverAsync(
-        Guid id, Guid currentUserId, CancellationToken ct = default)
+        Guid id, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         var order = await _orders.GetByIdAsync(id, ct);
         if (order == null)
             return ServiceResult<OrderResponse>.Fail("Orden no encontrada");
+
+        if (!HasAccess(order, currentUserId, currentRole))
+            return ServiceResult<OrderResponse>.Fail("No tiene acceso a esta orden");
 
         if (order.Status != OrderStatus.Approved)
             return ServiceResult<OrderResponse>.Fail("Solo se pueden entregar órdenes aprobadas");
@@ -202,6 +217,14 @@ public class OrderService
         await _orders.UpdateAsync(order, ct);
         return ServiceResult<OrderResponse>.Ok(ToResponse(order));
     }
+
+    private static bool HasAccess(Order order, Guid currentUserId, UserRole role) => role switch
+    {
+        UserRole.SuperAdmin => true,
+        UserRole.Vendor => order.VendorId == currentUserId,
+        UserRole.Supervisor => order.Vendor != null && order.Vendor.SupervisorId == currentUserId,
+        _ => false
+    };
 
     private static OrderResponse ToResponse(Order o) => new()
     {

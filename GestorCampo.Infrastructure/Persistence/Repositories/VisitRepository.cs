@@ -20,7 +20,9 @@ public class VisitRepository : IVisitRepository
     public async Task<(List<Visit> items, int totalCount)> GetListAsync(
         int page, int pageSize,
         VisitStatus? status, Guid? vendorId, Guid? clientId,
-        DateTime? from, DateTime? to, CancellationToken ct = default)
+        DateTime? from, DateTime? to,
+        Guid? supervisorOfVendor,
+        CancellationToken ct = default)
     {
         var query = _db.Visits
             .Include(v => v.Client)
@@ -37,6 +39,8 @@ public class VisitRepository : IVisitRepository
             query = query.Where(v => v.PlannedAt >= from.Value);
         if (to.HasValue)
             query = query.Where(v => v.PlannedAt <= to.Value);
+        if (supervisorOfVendor.HasValue)
+            query = query.Where(v => v.Vendor.SupervisorId == supervisorOfVendor.Value);
 
         var totalCount = await query.CountAsync(ct);
         var items = await query

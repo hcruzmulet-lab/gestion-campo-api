@@ -48,7 +48,7 @@ public class ClientServiceTests
 
         var result = await _sut.CreateAsync(
             new CreateClientRequest { TaxId = "0912345678001", Name = "A", Address = "B", Phone = "C", Email = "d@e.com" },
-            Guid.NewGuid());
+            Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Contain("RUC");
@@ -63,7 +63,7 @@ public class ClientServiceTests
 
         var result = await _sut.CreateAsync(
             new CreateClientRequest { TaxId = "123", Name = "A", Address = "B", Phone = "C", Email = "d@e.com", AssignedVendorId = vendorId },
-            Guid.NewGuid());
+            Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Contain("vendedor");
@@ -79,7 +79,7 @@ public class ClientServiceTests
 
         var result = await _sut.CreateAsync(
             new CreateClientRequest { TaxId = "123", Name = "A", Address = "B", Phone = "C", Email = "d@e.com", AssignedVendorId = supervisorId },
-            Guid.NewGuid());
+            Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Contain("vendedor");
@@ -92,7 +92,7 @@ public class ClientServiceTests
 
         var result = await _sut.CreateAsync(
             new CreateClientRequest { TaxId = "123", Name = "Farmacia XYZ", Address = "Calle A", Phone = "09999", Email = "x@y.com" },
-            Guid.NewGuid());
+            Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
         result.Data!.Name.Should().Be("Farmacia XYZ");
@@ -134,14 +134,38 @@ public class ClientServiceTests
     }
 
     [Fact]
-    public async Task GetById_SupervisorAccessesAnyClient_ReturnsOk()
+    public async Task GetById_SupervisorAccessesOwnTeamClient_ReturnsOk()
     {
-        var client = BuildClient(assignedVendorId: Guid.NewGuid());
+        var supervisorId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();
+        var client = BuildClient(assignedVendorId: vendorId);
+        client.AssignedVendor = new User
+        {
+            Id = vendorId, Name = "V", Email = "v@t.com", PasswordHash = "h",
+            Role = UserRole.Vendor, SupervisorId = supervisorId
+        };
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+
+        var result = await _sut.GetByIdAsync(client.Id, supervisorId, UserRole.Supervisor);
+
+        result.Succeeded.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetById_SupervisorAccessesOtherTeamClient_ReturnsFail()
+    {
+        var vendorId = Guid.NewGuid();
+        var client = BuildClient(assignedVendorId: vendorId);
+        client.AssignedVendor = new User
+        {
+            Id = vendorId, Name = "V", Email = "v@t.com", PasswordHash = "h",
+            Role = UserRole.Vendor, SupervisorId = Guid.NewGuid() // different supervisor
+        };
         _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
 
         var result = await _sut.GetByIdAsync(client.Id, Guid.NewGuid(), UserRole.Supervisor);
 
-        result.Succeeded.Should().BeTrue();
+        result.Succeeded.Should().BeFalse();
     }
 
     [Fact]
@@ -151,12 +175,12 @@ public class ClientServiceTests
         _clientRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
             It.IsAny<string?>(), It.IsAny<bool?>(), It.IsAny<string?>(),
-            It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<Client>(), 0));
 
         await _sut.GetListAsync(new ClientListRequest(), vendorId, UserRole.Vendor);
 
-        _clientRepo.Verify(r => r.GetListAsync(1, 20, null, null, null, vendorId, default), Times.Once);
+        _clientRepo.Verify(r => r.GetListAsync(1, 20, null, null, null, vendorId, null, default), Times.Once);
     }
 
     [Fact]
@@ -166,14 +190,31 @@ public class ClientServiceTests
         _clientRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
             It.IsAny<string?>(), It.IsAny<bool?>(), It.IsAny<string?>(),
-            It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<Client>(), 0));
 
         await _sut.GetListAsync(
             new ClientListRequest { AssignedVendorId = filterVendorId },
             Guid.NewGuid(), UserRole.SuperAdmin);
 
-        _clientRepo.Verify(r => r.GetListAsync(1, 20, null, null, null, filterVendorId, default), Times.Once);
+        _clientRepo.Verify(r => r.GetListAsync(1, 20, null, null, null, filterVendorId, null, default), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetList_Supervisor_AppliesSupervisorOfVendorFilter()
+    {
+        var supervisorId = Guid.NewGuid();
+        _clientRepo.Setup(r => r.GetListAsync(
+            It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<string?>(), It.IsAny<bool?>(), It.IsAny<string?>(),
+            It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((new List<Client>(), 0));
+
+        await _sut.GetListAsync(new ClientListRequest(), supervisorId, UserRole.Supervisor);
+
+        _clientRepo.Verify(
+            r => r.GetListAsync(1, 20, null, null, null, null, supervisorId, default),
+            Times.Once);
     }
 
     [Fact]
@@ -181,7 +222,7 @@ public class ClientServiceTests
     {
         _clientRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Client?)null);
 
-        var result = await _sut.DeleteAsync(Guid.NewGuid(), Guid.NewGuid());
+        var result = await _sut.DeleteAsync(Guid.NewGuid(), Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeFalse();
     }
@@ -192,7 +233,7 @@ public class ClientServiceTests
         var client = BuildClient();
         _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
 
-        var result = await _sut.DeleteAsync(client.Id, Guid.NewGuid());
+        var result = await _sut.DeleteAsync(client.Id, Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
         _clientRepo.Verify(r => r.UpdateAsync(

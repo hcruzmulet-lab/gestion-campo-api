@@ -1,5 +1,7 @@
+using System.IdentityModel.Tokens.Jwt;
 using GestorCampo.Application.Dashboard;
 using GestorCampo.Application.Dashboard.DTOs;
+using GestorCampo.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -20,11 +22,17 @@ public class DashboardController : ControllerBase
         _agentStatus = agentStatus;
     }
 
+    private Guid CurrentUserId =>
+        Guid.Parse(User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value);
+
+    private UserRole CurrentRole =>
+        Enum.Parse<UserRole>(User.FindFirst("role")!.Value);
+
     [HttpGet("stats")]
     [ProducesResponseType(typeof(DashboardStatsResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetStats(CancellationToken ct)
     {
-        var result = await _dashboard.GetStatsAsync(ct);
+        var result = await _dashboard.GetStatsAsync(CurrentUserId, CurrentRole, ct);
         return Ok(result.Data);
     }
 
@@ -32,7 +40,7 @@ public class DashboardController : ControllerBase
     [ProducesResponseType(typeof(List<AgentStatusDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAgentsStatus(CancellationToken ct)
     {
-        var result = await _agentStatus.GetAgentStatusesAsync(ct);
+        var result = await _agentStatus.GetAgentStatusesAsync(CurrentUserId, CurrentRole, ct);
         return Ok(result);
     }
 }

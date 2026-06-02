@@ -22,7 +22,9 @@ public class OrderRepository : IOrderRepository
     public async Task<(List<Order> items, int totalCount)> GetListAsync(
         int page, int pageSize,
         OrderStatus? status, Guid? vendorId, Guid? clientId, Guid? visitId,
-        DateTime? from, DateTime? to, CancellationToken ct = default)
+        DateTime? from, DateTime? to,
+        Guid? supervisorOfVendor,
+        CancellationToken ct = default)
     {
         var query = _db.Orders
             .Include(o => o.Client)
@@ -43,6 +45,8 @@ public class OrderRepository : IOrderRepository
             query = query.Where(o => o.CreatedAt >= from.Value);
         if (to.HasValue)
             query = query.Where(o => o.CreatedAt <= to.Value);
+        if (supervisorOfVendor.HasValue)
+            query = query.Where(o => o.Vendor.SupervisorId == supervisorOfVendor.Value);
 
         var totalCount = await query.CountAsync(ct);
         var items = await query
@@ -57,6 +61,7 @@ public class OrderRepository : IOrderRepository
     public Task<List<Order>> GetApprovedWithLinesAsync(
         DateTime from, DateTime to, CancellationToken ct = default) =>
         _db.Orders
+            .Include(o => o.Vendor)
             .Include(o => o.Lines)
             .Where(o => o.Status == OrderStatus.Approved
                      && o.CreatedAt >= from

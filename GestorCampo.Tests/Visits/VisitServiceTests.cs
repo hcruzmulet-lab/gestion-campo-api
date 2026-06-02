@@ -138,8 +138,28 @@ public class VisitServiceTests
     [Fact]
     public async Task Create_AsSupervisor_ValidVendor_ReturnsOk()
     {
+        var supervisorId = Guid.NewGuid();
         var client = BuildClient();
         var vendor = BuildVendor();
+        vendor.SupervisorId = supervisorId;
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+        _userRepo.Setup(r => r.GetByIdAsync(vendor.Id, default)).ReturnsAsync(vendor);
+
+        var result = await _sut.CreateAsync(
+            new CreateVisitRequest { ClientId = client.Id, VendorId = vendor.Id, PlannedAt = DateTime.UtcNow.AddDays(1) },
+            supervisorId, UserRole.Supervisor);
+
+        result.Succeeded.Should().BeTrue();
+        result.Data!.VendorId.Should().Be(vendor.Id);
+        _visitRepo.Verify(r => r.AddAsync(It.Is<Visit>(v => v.VendorId == vendor.Id), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_AsSupervisor_VendorBelongsToOtherSupervisor_Fails()
+    {
+        var client = BuildClient();
+        var vendor = BuildVendor();
+        vendor.SupervisorId = Guid.NewGuid(); // different supervisor
         _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
         _userRepo.Setup(r => r.GetByIdAsync(vendor.Id, default)).ReturnsAsync(vendor);
 
@@ -147,9 +167,9 @@ public class VisitServiceTests
             new CreateVisitRequest { ClientId = client.Id, VendorId = vendor.Id, PlannedAt = DateTime.UtcNow.AddDays(1) },
             Guid.NewGuid(), UserRole.Supervisor);
 
-        result.Succeeded.Should().BeTrue();
-        result.Data!.VendorId.Should().Be(vendor.Id);
-        _visitRepo.Verify(r => r.AddAsync(It.Is<Visit>(v => v.VendorId == vendor.Id), default), Times.Once);
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("equipo");
+        _visitRepo.Verify(r => r.AddAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 
     // --- GetById ---
@@ -377,7 +397,7 @@ public class VisitServiceTests
         var visit = BuildVisit();
         _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
 
-        var result = await _sut.DeleteAsync(visit.Id, Guid.NewGuid(), UserRole.Supervisor);
+        var result = await _sut.DeleteAsync(visit.Id, Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
         _visitRepo.Verify(r => r.UpdateAsync(

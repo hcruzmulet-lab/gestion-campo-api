@@ -10,7 +10,9 @@ public interface IClientRepository
     Task<(List<Client> items, int totalCount)> GetListAsync(
         int page, int pageSize,
         string? search, bool? isActive, string? category,
-        Guid? assignedVendorId, CancellationToken ct = default);
+        Guid? assignedVendorId,
+        Guid? supervisorOfVendor,
+        CancellationToken ct = default);
     Task AddAsync(Client client, CancellationToken ct = default);
     Task UpdateAsync(Client client, CancellationToken ct = default);
 }

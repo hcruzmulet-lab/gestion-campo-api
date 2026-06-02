@@ -20,15 +20,18 @@ public class AgentStatusService
         _tracking = tracking;
     }
 
-    public async Task<List<AgentStatusDto>> GetAgentStatusesAsync(CancellationToken ct = default)
+    public async Task<List<AgentStatusDto>> GetAgentStatusesAsync(
+        Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         var today = DateTime.UtcNow.Date;
         var tomorrow = today.AddDays(1);
 
-        var (vendors, _) = await _users.GetListAsync(1, 200, UserRole.Vendor, true, null, null, null, false, ct);
+        var supervisorFilter = currentRole == UserRole.Supervisor ? currentUserId : (Guid?)null;
+
+        var (vendors, _) = await _users.GetListAsync(1, 200, UserRole.Vendor, true, null, supervisorFilter, null, false, ct);
         if (vendors.Count == 0) return new List<AgentStatusDto>();
 
-        var (visits, _) = await _visits.GetListAsync(1, 2000, null, null, null, today, tomorrow, ct);
+        var (visits, _) = await _visits.GetListAsync(1, 2000, null, null, null, today, tomorrow, supervisorFilter, ct);
         var lastLocations = await _tracking.GetLastLocationsAsync(vendors.Select(v => v.Id), ct);
 
         var visitsByVendor = visits

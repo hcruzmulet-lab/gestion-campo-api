@@ -18,7 +18,7 @@ public class ClientService
     }
 
     public async Task<ServiceResult<ClientResponse>> CreateAsync(
-        CreateClientRequest request, Guid currentUserId, CancellationToken ct = default)
+        CreateClientRequest request, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         if (await _clients.TaxIdExistsAsync(request.TaxId, ct))
             return ServiceResult<ClientResponse>.Fail("El RUC/cédula ya está registrado");
@@ -28,6 +28,8 @@ public class ClientService
             var vendor = await _users.GetByIdAsync(request.AssignedVendorId.Value, ct);
             if (vendor == null || vendor.Role != UserRole.Vendor)
                 return ServiceResult<ClientResponse>.Fail("El vendedor asignado no es válido");
+            if (currentRole == UserRole.Supervisor && vendor.SupervisorId != currentUserId)
+                return ServiceResult<ClientResponse>.Fail("Ese vendedor no pertenece a tu equipo");
         }
 
         var client = new Client
@@ -55,7 +57,7 @@ public class ClientService
         var client = await _clients.GetByIdAsync(id, ct);
         if (client == null) return ServiceResult<ClientResponse>.Fail("Cliente no encontrado");
 
-        if (currentRole == UserRole.Vendor && client.AssignedVendorId != currentUserId)
+        if (!HasAccess(client, currentUserId, currentRole))
             return ServiceResult<ClientResponse>.Fail("No tiene acceso a este cliente");
 
         return ServiceResult<ClientResponse>.Ok(ToResponse(client));
@@ -66,11 +68,14 @@ public class ClientService
     {
         var pageSize = Math.Min(request.PageSize, 100);
         var vendorFilter = currentRole == UserRole.Vendor ? currentUserId : request.AssignedVendorId;
+        var supervisorFilter = currentRole == UserRole.Supervisor ? currentUserId : (Guid?)null;
 
         var (items, totalCount) = await _clients.GetListAsync(
             request.Page, pageSize,
             request.Search, request.IsActive, request.Category,
-            vendorFilter, ct);
+            vendorFilter,
+            supervisorFilter,
+            ct);
 
         return ServiceResult<PagedResult<ClientResponse>>.Ok(new PagedResult<ClientResponse>
         {
@@ -82,16 +87,21 @@ public class ClientService
     }
 
     public async Task<ServiceResult<ClientResponse>> UpdateAsync(
-        Guid id, UpdateClientRequest request, Guid currentUserId, CancellationToken ct = default)
+        Guid id, UpdateClientRequest request, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         var client = await _clients.GetByIdAsync(id, ct);
         if (client == null) return ServiceResult<ClientResponse>.Fail("Cliente no encontrado");
+
+        if (!HasAccess(client, currentUserId, currentRole))
+            return ServiceResult<ClientResponse>.Fail("No tiene acceso a este cliente");
 
         if (request.AssignedVendorId.HasValue)
         {
             var vendor = await _users.GetByIdAsync(request.AssignedVendorId.Value, ct);
             if (vendor == null || vendor.Role != UserRole.Vendor)
                 return ServiceResult<ClientResponse>.Fail("El vendedor asignado no es válido");
+            if (currentRole == UserRole.Supervisor && vendor.SupervisorId != currentUserId)
+                return ServiceResult<ClientResponse>.Fail("Ese vendedor no pertenece a tu equipo");
         }
 
         if (request.Name != null) client.Name = request.Name;
@@ -108,10 +118,14 @@ public class ClientService
         return ServiceResult<ClientResponse>.Ok(ToResponse(client));
     }
 
-    public async Task<ServiceResult> DeleteAsync(Guid id, Guid currentUserId, CancellationToken ct = default)
+    public async Task<ServiceResult> DeleteAsync(
+        Guid id, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
         var client = await _clients.GetByIdAsync(id, ct);
         if (client == null) return ServiceResult.Fail("Cliente no encontrado");
+
+        if (!HasAccess(client, currentUserId, currentRole))
+            return ServiceResult.Fail("No tiene acceso a este cliente");
 
         client.DeletedAt = DateTime.UtcNow;
         client.DeletedBy = currentUserId;
@@ -120,6 +134,14 @@ public class ClientService
         await _clients.UpdateAsync(client, ct);
         return ServiceResult.Ok();
     }
+
+    private static bool HasAccess(Client client, Guid currentUserId, UserRole role) => role switch
+    {
+        UserRole.SuperAdmin => true,
+        UserRole.Vendor => client.AssignedVendorId == currentUserId,
+        UserRole.Supervisor => client.AssignedVendor != null && client.AssignedVendor.SupervisorId == currentUserId,
+        _ => false
+    };
 
     private static ClientResponse ToResponse(Client c) => new()
     {

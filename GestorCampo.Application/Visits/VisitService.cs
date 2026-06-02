@@ -43,6 +43,9 @@ public class VisitService
             if (vendor == null || vendor.Role != UserRole.Vendor)
                 return ServiceResult<VisitResponse>.Fail("El vendedor especificado no es válido");
 
+            if (currentRole == UserRole.Supervisor && vendor.SupervisorId != currentUserId)
+                return ServiceResult<VisitResponse>.Fail("Ese vendedor no pertenece a tu equipo");
+
             vendorId = request.VendorId.Value;
         }
 
@@ -75,7 +78,7 @@ public class VisitService
         if (visit == null)
             return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
 
-        if (currentRole == UserRole.Vendor && visit.VendorId != currentUserId)
+        if (!HasAccess(visit, currentUserId, currentRole))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
 
         return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
@@ -86,11 +89,14 @@ public class VisitService
     {
         var pageSize = Math.Min(request.PageSize, 100);
         var vendorFilter = currentRole == UserRole.Vendor ? currentUserId : request.VendorId;
+        var supervisorFilter = currentRole == UserRole.Supervisor ? currentUserId : (Guid?)null;
 
         var (items, totalCount) = await _visits.GetListAsync(
             request.Page, pageSize,
             request.Status, vendorFilter, request.ClientId,
-            request.From, request.To, ct);
+            request.From, request.To,
+            supervisorFilter,
+            ct);
 
         return ServiceResult<PagedResult<VisitResponse>>.Ok(new PagedResult<VisitResponse>
         {
@@ -106,7 +112,7 @@ public class VisitService
     {
         var visit = await _visits.GetByIdAsync(id, ct);
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
-        if (role == UserRole.Vendor && visit.VendorId != currentUserId)
+        if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
         if (visit.Status != VisitStatus.Planned)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-in en visitas planificadas");
@@ -140,7 +146,7 @@ public class VisitService
     {
         var visit = await _visits.GetByIdAsync(id, ct);
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
-        if (role == UserRole.Vendor && visit.VendorId != currentUserId)
+        if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
         if (visit.Status != VisitStatus.InProgress)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-out en visitas en curso");
@@ -161,7 +167,7 @@ public class VisitService
     {
         var visit = await _visits.GetByIdAsync(id, ct);
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
-        if (role == UserRole.Vendor && visit.VendorId != currentUserId)
+        if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
         if (visit.Status != VisitStatus.InProgress && visit.Status != VisitStatus.Planned)
             return ServiceResult<VisitResponse>.Fail("Solo se puede actualizar visitas planificadas o en curso");
@@ -177,7 +183,7 @@ public class VisitService
     {
         var visit = await _visits.GetByIdAsync(id, ct);
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
-        if (role == UserRole.Vendor && visit.VendorId != currentUserId)
+        if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
         if (visit.Status != VisitStatus.Planned && visit.Status != VisitStatus.InProgress)
             return ServiceResult<VisitResponse>.Fail(
@@ -211,6 +217,9 @@ public class VisitService
         if (visit == null)
             return ServiceResult.Fail("Visita no encontrada");
 
+        if (!HasAccess(visit, currentUserId, currentRole))
+            return ServiceResult.Fail("No tiene acceso a esta visita");
+
         visit.DeletedAt = DateTime.UtcNow;
         visit.DeletedBy = currentUserId;
         visit.IsActive = false;
@@ -218,6 +227,14 @@ public class VisitService
         await _visits.UpdateAsync(visit, ct);
         return ServiceResult.Ok();
     }
+
+    private static bool HasAccess(Visit visit, Guid currentUserId, UserRole role) => role switch
+    {
+        UserRole.SuperAdmin => true,
+        UserRole.Vendor => visit.VendorId == currentUserId,
+        UserRole.Supervisor => visit.Vendor != null && visit.Vendor.SupervisorId == currentUserId,
+        _ => false
+    };
 
     private static VisitResponse ToResponse(Visit v) => new()
     {

@@ -158,7 +158,7 @@ public class OrderServiceTests
     {
         _orderRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Order?)null);
 
-        var result = await _sut.SendAsync(Guid.NewGuid(), Guid.NewGuid());
+        var result = await _sut.SendAsync(Guid.NewGuid(), Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Be("Orden no encontrada");
@@ -170,7 +170,7 @@ public class OrderServiceTests
         var order = BuildOrder(status: OrderStatus.Sent);
         _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
 
-        var result = await _sut.SendAsync(order.Id, Guid.NewGuid());
+        var result = await _sut.SendAsync(order.Id, Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Be("Solo se pueden enviar órdenes en borrador");
@@ -183,7 +183,7 @@ public class OrderServiceTests
         var order = BuildOrder(status: OrderStatus.Draft);
         _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
 
-        var result = await _sut.SendAsync(order.Id, currentUserId);
+        var result = await _sut.SendAsync(order.Id, currentUserId, UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
         _orderRepo.Verify(r => r.UpdateAsync(
@@ -198,7 +198,7 @@ public class OrderServiceTests
     {
         _orderRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Order?)null);
 
-        var result = await _sut.ApproveAsync(Guid.NewGuid(), Guid.NewGuid());
+        var result = await _sut.ApproveAsync(Guid.NewGuid(), Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Be("Orden no encontrada");
@@ -210,7 +210,7 @@ public class OrderServiceTests
         var order = BuildOrder(status: OrderStatus.Draft);
         _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
 
-        var result = await _sut.ApproveAsync(order.Id, Guid.NewGuid());
+        var result = await _sut.ApproveAsync(order.Id, Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeFalse();
         result.Error.Should().Be("Solo se pueden aprobar órdenes enviadas");
@@ -223,7 +223,7 @@ public class OrderServiceTests
         var order = BuildOrder(status: OrderStatus.Sent);
         _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
 
-        var result = await _sut.ApproveAsync(order.Id, currentUserId);
+        var result = await _sut.ApproveAsync(order.Id, currentUserId, UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
         _orderRepo.Verify(r => r.UpdateAsync(
@@ -243,7 +243,7 @@ public class OrderServiceTests
         var order = BuildOrder(status: OrderStatus.Sent);
         _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
 
-        var result = await _sut.RejectAsync(order.Id, new RejectOrderRequest { Comment = "Precio incorrecto" }, currentUserId);
+        var result = await _sut.RejectAsync(order.Id, new RejectOrderRequest { Comment = "Precio incorrecto" }, currentUserId, UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
         _orderRepo.Verify(r => r.UpdateAsync(
@@ -382,7 +382,7 @@ public class OrderServiceTests
         var order = BuildOrder(status: OrderStatus.Approved);
         _orderRepo.Setup(r => r.GetByIdAsync(order.Id, default)).ReturnsAsync(order);
 
-        var result = await _sut.DeliverAsync(order.Id, currentUserId);
+        var result = await _sut.DeliverAsync(order.Id, currentUserId, UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
         _orderRepo.Verify(r => r.UpdateAsync(

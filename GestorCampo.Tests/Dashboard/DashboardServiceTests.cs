@@ -23,7 +23,9 @@ public class DashboardServiceTests
         _visitRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
             It.IsAny<VisitStatus?>(), It.IsAny<Guid?>(), It.IsAny<Guid?>(),
-            It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+            It.IsAny<Guid?>(),
+            It.IsAny<CancellationToken>()))
             .ReturnsAsync((visits.ToList(), visits.Length));
     }
 
@@ -32,7 +34,9 @@ public class DashboardServiceTests
         _orderRepo.Setup(r => r.GetListAsync(
             It.IsAny<int>(), It.IsAny<int>(),
             It.IsAny<OrderStatus?>(), It.IsAny<Guid?>(), It.IsAny<Guid?>(), It.IsAny<Guid?>(),
-            It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
+            It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+            It.IsAny<Guid?>(),
+            It.IsAny<CancellationToken>()))
             .ReturnsAsync((orders.ToList(), orders.Length));
     }
 
@@ -50,7 +54,7 @@ public class DashboardServiceTests
         SetupOrders();
         SetupOrdersWithLines();
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
         result.Data!.Visits.Total.Should().Be(0);
@@ -70,7 +74,7 @@ public class DashboardServiceTests
         SetupOrders();
         SetupOrdersWithLines();
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Data!.Visits.Planned.Should().Be(1);
         result.Data.Visits.Completed.Should().Be(2);
@@ -89,7 +93,7 @@ public class DashboardServiceTests
         );
         SetupOrdersWithLines();
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Data!.Orders.Sent.Should().Be(1);
         result.Data.Orders.Approved.Should().Be(2);
@@ -107,7 +111,7 @@ public class DashboardServiceTests
         SetupOrders();
         SetupOrdersWithLines();
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Data!.ActiveVendorsToday.Should().Be(1); // same vendorId twice → 1 distinct
     }
@@ -123,7 +127,7 @@ public class DashboardServiceTests
         SetupOrders();
         SetupOrdersWithLines();
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Data!.ConversionRate.Should().BeApproximately(0.5f, 0.001f);
     }
@@ -135,7 +139,7 @@ public class DashboardServiceTests
         SetupOrders();
         SetupOrdersWithLines();
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Data!.ConversionRate.Should().Be(0f);
     }
@@ -157,7 +161,7 @@ public class DashboardServiceTests
             }
         );
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Data!.TotalApprovedValue.Should().Be(230m);
     }
@@ -174,7 +178,7 @@ public class DashboardServiceTests
         SetupOrders();
         SetupOrdersWithLines();
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         // 2 completed / (2 completed + 1 not completed) = 0.667
         result.Data!.VisitCompletionRate.Should().BeApproximately(0.667f, 0.001f);
@@ -189,7 +193,7 @@ public class DashboardServiceTests
         SetupOrders();
         SetupOrdersWithLines();
 
-        var result = await _sut.GetStatsAsync();
+        var result = await _sut.GetStatsAsync(Guid.NewGuid(), UserRole.SuperAdmin);
 
         result.Data!.VisitCompletionRate.Should().Be(0f);
     }

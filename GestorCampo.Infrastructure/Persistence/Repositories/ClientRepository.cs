@@ -26,7 +26,9 @@ public class ClientRepository : IClientRepository
     public async Task<(List<Client> items, int totalCount)> GetListAsync(
         int page, int pageSize,
         string? search, bool? isActive, string? category,
-        Guid? assignedVendorId, CancellationToken ct = default)
+        Guid? assignedVendorId,
+        Guid? supervisorOfVendor,
+        CancellationToken ct = default)
     {
         var query = _db.Clients.Include(c => c.AssignedVendor).AsQueryable();
 
@@ -38,6 +40,8 @@ public class ClientRepository : IClientRepository
             query = query.Where(c => c.Category == category);
         if (assignedVendorId.HasValue)
             query = query.Where(c => c.AssignedVendorId == assignedVendorId.Value);
+        if (supervisorOfVendor.HasValue)
+            query = query.Where(c => c.AssignedVendor != null && c.AssignedVendor.SupervisorId == supervisorOfVendor.Value);
 
         var totalCount = await query.CountAsync(ct);
         var items = await query
