@@ -136,6 +136,23 @@ public class OrdersController : ControllerBase
         return Ok(result.Data);
     }
 
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+    {
+        var result = await _orders.DeleteAsync(id, CurrentUserId, CurrentRole, ct);
+        if (!result.Succeeded)
+        {
+            if (result.Error!.Contains("acceso")) return Forbid();
+            if (result.Error.Contains("no encontrada")) return NotFound(new { error = result.Error });
+            return Conflict(new { error = result.Error });
+        }
+        return NoContent();
+    }
+
     [HttpPost("{id:guid}/deliver")]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

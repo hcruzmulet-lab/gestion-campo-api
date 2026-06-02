@@ -198,6 +198,27 @@ public class OrderService
         return ServiceResult<OrderResponse>.Ok(ToResponse(order));
     }
 
+    public async Task<ServiceResult> DeleteAsync(
+        Guid id, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
+    {
+        var order = await _orders.GetByIdAsync(id, ct);
+        if (order == null)
+            return ServiceResult.Fail("Orden no encontrada");
+
+        if (!HasAccess(order, currentUserId, currentRole))
+            return ServiceResult.Fail("No tiene acceso a esta orden");
+
+        if (order.Status != OrderStatus.Draft)
+            return ServiceResult.Fail("Solo se pueden eliminar órdenes en borrador");
+
+        order.DeletedAt = DateTime.UtcNow;
+        order.DeletedBy = currentUserId;
+        order.IsActive = false;
+        order.UpdatedBy = currentUserId;
+        await _orders.UpdateAsync(order, ct);
+        return ServiceResult.Ok();
+    }
+
     public async Task<ServiceResult<OrderResponse>> DeliverAsync(
         Guid id, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
