@@ -105,6 +105,23 @@ public class UsersController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id:guid}/reset-password")]
+    [Authorize(Roles = "SuperAdmin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AdminResetPassword(Guid id, [FromBody] AdminResetPasswordRequest request, CancellationToken ct)
+    {
+        var result = await _users.AdminResetPasswordAsync(id, request, CurrentUserId, ct);
+        if (!result.Succeeded)
+        {
+            if (result.Error!.Contains("Usuario no encontrado"))
+                return NotFound(new { error = result.Error });
+            return BadRequest(new { error = result.Error });
+        }
+        return NoContent();
+    }
+
     [HttpPost("{id:guid}/toggle-2fa")]
     [Authorize(Roles = "SuperAdmin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

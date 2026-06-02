@@ -6,6 +6,7 @@ using GestorCampo.Domain.Enums;
 using GestorCampo.Domain.Interfaces.Repositories;
 using GestorCampo.Domain.Interfaces.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
 namespace GestorCampo.Tests.Users;
@@ -31,7 +32,7 @@ public class UserServiceTests
             .Setup(r => r.GetLastCheckinByVendorAsync(It.IsAny<IEnumerable<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, DateTime>());
 
-        _sut = new UserService(_userRepo.Object, _visitRepo.Object, _password.Object, _email.Object, config);
+        _sut = new UserService(_userRepo.Object, _visitRepo.Object, _password.Object, _email.Object, config, NullLogger<UserService>.Instance);
     }
 
     private User BuildUser(UserRole role = UserRole.Vendor, Guid? supervisorId = null) => new()
@@ -91,11 +92,10 @@ public class UserServiceTests
     }
 
     [Fact]
-    public async Task Create_ValidData_SavesUserAndSendsVerificationEmail()
+    public async Task Create_ValidData_SavesAutoVerifiedUserWithoutSendingEmail()
     {
         _userRepo.Setup(r => r.EmailExistsAsync(It.IsAny<string>(), default)).ReturnsAsync(false);
         _password.Setup(p => p.Hash(It.IsAny<string>())).Returns("hashed");
-        _password.Setup(p => p.GenerateSecureToken()).Returns("token123");
         var request = new CreateUserRequest { Email = "new@test.com", Name = "Ana", Password = "pass", Role = UserRole.Vendor };
         var currentUserId = Guid.NewGuid();
 
@@ -103,9 +103,11 @@ public class UserServiceTests
 
         result.Succeeded.Should().BeTrue();
         result.Data!.Email.Should().Be("new@test.com");
-        result.Data.EmailVerified.Should().BeFalse();
+        result.Data.EmailVerified.Should().BeTrue();
         _userRepo.Verify(r => r.AddAsync(It.IsAny<User>(), default), Times.Once);
-        _email.Verify(e => e.SendEmailVerificationAsync("new@test.com", "Ana", "token123", default), Times.Once);
+        _email.Verify(
+            e => e.SendEmailVerificationAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     // ---- GetById ----
@@ -236,6 +238,78 @@ public class UserServiceTests
         result.Succeeded.Should().BeTrue();
         result.Data!.Name.Should().Be("Updated");
         _userRepo.Verify(r => r.UpdateAsync(It.Is<User>(u => u.Name == "Updated"), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Update_SuperAdminChangesRole_AppliesNewRole()
+    {
+        var user = BuildUser(UserRole.Vendor);
+        _userRepo.Setup(r => r.GetByIdAsync(user.Id, default)).ReturnsAsync(user);
+
+        var result = await _sut.UpdateAsync(
+            user.Id,
+            new UpdateUserRequest { Role = UserRole.Supervisor },
+            Guid.NewGuid(),
+            UserRole.SuperAdmin);
+
+        result.Succeeded.Should().BeTrue();
+        result.Data!.Role.Should().Be(UserRole.Supervisor);
+        _userRepo.Verify(r => r.UpdateAsync(It.Is<User>(u => u.Role == UserRole.Supervisor), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Update_SupervisorTriesToChangeRole_ReturnsFail()
+    {
+        var supervisorId = Guid.NewGuid();
+        var vendor = BuildUser(UserRole.Vendor, supervisorId);
+        _userRepo.Setup(r => r.GetByIdAsync(vendor.Id, default)).ReturnsAsync(vendor);
+
+        var result = await _sut.UpdateAsync(
+            vendor.Id,
+            new UpdateUserRequest { Role = UserRole.Supervisor },
+            supervisorId,
+            UserRole.Supervisor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("SuperAdmin");
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Update_SuperAdminChangesOwnRole_ReturnsFail()
+    {
+        var selfId = Guid.NewGuid();
+        var self = BuildUser(UserRole.SuperAdmin);
+        self.Id = selfId;
+        _userRepo.Setup(r => r.GetByIdAsync(selfId, default)).ReturnsAsync(self);
+
+        var result = await _sut.UpdateAsync(
+            selfId,
+            new UpdateUserRequest { Role = UserRole.Vendor },
+            selfId,
+            UserRole.SuperAdmin);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("propio rol");
+        _userRepo.Verify(r => r.UpdateAsync(It.IsAny<User>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Update_SupervisorSendsSameRole_NoFailureNoChange()
+    {
+        var supervisorId = Guid.NewGuid();
+        var vendor = BuildUser(UserRole.Vendor, supervisorId);
+        _userRepo.Setup(r => r.GetByIdAsync(vendor.Id, default)).ReturnsAsync(vendor);
+
+        var result = await _sut.UpdateAsync(
+            vendor.Id,
+            new UpdateUserRequest { Role = UserRole.Vendor, Name = "Same Role" },
+            supervisorId,
+            UserRole.Supervisor);
+
+        result.Succeeded.Should().BeTrue();
+        result.Data!.Role.Should().Be(UserRole.Vendor);
+        result.Data.Name.Should().Be("Same Role");
     }
 
     // ---- Delete ----
