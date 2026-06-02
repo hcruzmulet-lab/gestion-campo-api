@@ -6,3 +6,4 @@ obj/
 .idea/
 generated-client/
 openapi.json
+.DS_Store
