@@ -12,7 +12,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasKey(u => u.Id);
         builder.Property(u => u.Name).HasMaxLength(200).IsRequired();
         builder.Property(u => u.Email).HasMaxLength(320).IsRequired();
-        builder.HasIndex(u => u.Email).IsUnique();
+        builder.HasIndex(u => u.Email)
+            .IsUnique()
+            .HasFilter("\"DeletedAt\" IS NULL");
         builder.Property(u => u.PasswordHash).IsRequired();
         builder.Property(u => u.Role).IsRequired();
         builder.Property(u => u.Phone).HasMaxLength(20);
