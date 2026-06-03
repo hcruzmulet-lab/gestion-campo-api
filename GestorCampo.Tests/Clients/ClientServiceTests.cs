@@ -100,6 +100,36 @@ public class ClientServiceTests
     }
 
     [Fact]
+    public async Task Create_VendorRole_ForcesAssignedVendorToSelf()
+    {
+        var vendorId = Guid.NewGuid();
+        var spoofedVendorId = Guid.NewGuid();
+        _clientRepo.Setup(r => r.TaxIdExistsAsync(It.IsAny<string>(), default)).ReturnsAsync(false);
+
+        Client? captured = null;
+        _clientRepo
+            .Setup(r => r.AddAsync(It.IsAny<Client>(), default))
+            .Callback<Client, CancellationToken>((c, _) => captured = c)
+            .Returns(Task.CompletedTask);
+
+        _userRepo.Setup(r => r.GetByIdAsync(vendorId, default))
+            .ReturnsAsync(new User { Id = vendorId, Role = UserRole.Vendor, Name = "V", Email = "v@t.com", PasswordHash = "h" });
+
+        var result = await _sut.CreateAsync(
+            new CreateClientRequest
+            {
+                TaxId = "VEND-TEST-1", Name = "Cliente Vendor", Address = null, Phone = null, Email = null,
+                AssignedVendorId = spoofedVendorId // ignored when role is Vendor
+            },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        captured.Should().NotBeNull();
+        captured!.AssignedVendorId.Should().Be(vendorId);
+        captured.AssignedVendorId.Should().NotBe(spoofedVendorId);
+    }
+
+    [Fact]
     public async Task GetById_NotFound_ReturnsFail()
     {
         _clientRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Client?)null);

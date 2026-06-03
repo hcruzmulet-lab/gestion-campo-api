@@ -51,7 +51,7 @@ public class ClientsController : ControllerBase
     }
 
     [HttpPost]
-    [Authorize(Roles = "SuperAdmin,Supervisor")]
+    [Authorize(Roles = "SuperAdmin,Supervisor,Vendor")]
     [ProducesResponseType(typeof(ClientResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

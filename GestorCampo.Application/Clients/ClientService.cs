@@ -23,9 +23,16 @@ public class ClientService
         if (await _clients.TaxIdExistsAsync(request.TaxId, ct))
             return ServiceResult<ClientResponse>.Fail("El RUC/cédula ya está registrado");
 
-        if (request.AssignedVendorId.HasValue)
+        // Vendors can only create clients assigned to themselves. The DTO field
+        // is ignored / overwritten so the mobile client doesn't need to know
+        // about RBAC.
+        var assignedVendorId = currentRole == UserRole.Vendor
+            ? currentUserId
+            : request.AssignedVendorId;
+
+        if (assignedVendorId.HasValue)
         {
-            var vendor = await _users.GetByIdAsync(request.AssignedVendorId.Value, ct);
+            var vendor = await _users.GetByIdAsync(assignedVendorId.Value, ct);
             if (vendor == null || vendor.Role != UserRole.Vendor)
                 return ServiceResult<ClientResponse>.Fail("El vendedor asignado no es válido");
             if (currentRole == UserRole.Supervisor && vendor.SupervisorId != currentUserId)
@@ -42,7 +49,7 @@ public class ClientService
             Lat = request.Lat,
             Lng = request.Lng,
             Category = request.Category,
-            AssignedVendorId = request.AssignedVendorId,
+            AssignedVendorId = assignedVendorId,
             CreatedBy = currentUserId,
             UpdatedBy = currentUserId
         };
