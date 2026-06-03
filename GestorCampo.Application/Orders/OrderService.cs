@@ -46,6 +46,13 @@ public class OrderService
             });
         }
 
+        // Auto-approve at create time. The mobile vendor flow no longer goes
+        // through a Supervisor approval queue: if the create request reached
+        // the API, the vendor is online by definition, so the order skips
+        // Draft/Sent and lands as Approved. Offline-created drafts stay as
+        // Draft locally on the device until the outbox drains, at which point
+        // this same code path approves them.
+        var now = DateTime.UtcNow;
         var order = new Order
         {
             ClientId = request.ClientId,
@@ -53,7 +60,8 @@ public class OrderService
             VendorId = currentUserId,
             Vendor = null!,
             VisitId = request.VisitId,
-            Status = OrderStatus.Draft,
+            Status = OrderStatus.Approved,
+            ApprovedAt = now,
             Lines = lines,
             CreatedBy = currentUserId,
             UpdatedBy = currentUserId
@@ -152,7 +160,11 @@ public class OrderService
         if (order.Status != OrderStatus.Draft)
             return ServiceResult<OrderResponse>.Fail("Solo se pueden enviar órdenes en borrador");
 
-        order.Status = OrderStatus.Sent;
+        // No Supervisor approval step anymore — sending a draft approves it
+        // directly. The Sent state is reserved for legacy data; new orders
+        // never enter it.
+        order.Status = OrderStatus.Approved;
+        order.ApprovedAt = DateTime.UtcNow;
         order.UpdatedBy = currentUserId;
         await _orders.UpdateAsync(order, ct);
         return ServiceResult<OrderResponse>.Ok(ToResponse(order));

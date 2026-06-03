@@ -108,7 +108,8 @@ public class OrderServiceTests
 
         result.Succeeded.Should().BeTrue();
         result.Data!.VendorId.Should().Be(currentUserId);
-        result.Data.Status.Should().Be(OrderStatus.Draft);
+        result.Data.Status.Should().Be(OrderStatus.Approved);
+        result.Data.ApprovedAt.Should().NotBeNull();
         result.Data.Lines.Should().HaveCount(1);
         _orderRepo.Verify(r => r.AddAsync(It.IsAny<Order>(), default), Times.Once);
     }
@@ -177,7 +178,7 @@ public class OrderServiceTests
     }
 
     [Fact]
-    public async Task Send_ValidDraft_ReturnsSent()
+    public async Task Send_ValidDraft_AutoApproves()
     {
         var currentUserId = Guid.NewGuid();
         var order = BuildOrder(status: OrderStatus.Draft);
@@ -186,8 +187,12 @@ public class OrderServiceTests
         var result = await _sut.SendAsync(order.Id, currentUserId, UserRole.SuperAdmin);
 
         result.Succeeded.Should().BeTrue();
+        result.Data!.Status.Should().Be(OrderStatus.Approved);
+        result.Data.ApprovedAt.Should().NotBeNull();
         _orderRepo.Verify(r => r.UpdateAsync(
-            It.Is<Order>(o => o.Status == OrderStatus.Sent && o.UpdatedBy == currentUserId),
+            It.Is<Order>(o => o.Status == OrderStatus.Approved
+                              && o.ApprovedAt != null
+                              && o.UpdatedBy == currentUserId),
             default), Times.Once);
     }
 
