@@ -172,6 +172,86 @@ public class VisitServiceTests
         _visitRepo.Verify(r => r.AddAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 
+    [Fact]
+    public async Task Create_AtomicCheckIn_SetsInProgressAndCoords()
+    {
+        var vendorId = Guid.NewGuid();
+        var client = BuildClient();
+        client.Lat = -1.0;
+        client.Lng = -78.0;
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+        _visitRepo.Setup(r => r.HasInProgressForVendorAsync(vendorId, default)).ReturnsAsync(false);
+
+        Visit? added = null;
+        _visitRepo.Setup(r => r.AddAsync(It.IsAny<Visit>(), default))
+            .Callback<Visit, CancellationToken>((v, _) => added = v)
+            .Returns(Task.CompletedTask);
+
+        var now = DateTime.UtcNow;
+        var result = await _sut.CreateAsync(
+            new CreateVisitRequest
+            {
+                ClientId = client.Id,
+                PlannedAt = now,
+                CheckInLat = -1.0,
+                CheckInLng = -78.0,
+                CheckinAt = now,
+            },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        added.Should().NotBeNull();
+        added!.Status.Should().Be(VisitStatus.InProgress);
+        added.CheckInLat.Should().Be(-1.0);
+        added.CheckInLng.Should().Be(-78.0);
+        added.CheckinAt.Should().Be(now);
+    }
+
+    [Fact]
+    public async Task Create_AtomicCheckIn_VendorAlreadyInProgress_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var client = BuildClient();
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+        _visitRepo.Setup(r => r.HasInProgressForVendorAsync(vendorId, default)).ReturnsAsync(true);
+
+        var result = await _sut.CreateAsync(
+            new CreateVisitRequest
+            {
+                ClientId = client.Id,
+                PlannedAt = DateTime.UtcNow,
+                CheckInLat = -1.0,
+                CheckInLng = -78.0,
+                CheckinAt = DateTime.UtcNow,
+            },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("visita en curso");
+        _visitRepo.Verify(r => r.AddAsync(It.IsAny<Visit>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_NoAtomicCheckIn_StaysPlanned()
+    {
+        var vendorId = Guid.NewGuid();
+        var client = BuildClient();
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+
+        Visit? added = null;
+        _visitRepo.Setup(r => r.AddAsync(It.IsAny<Visit>(), default))
+            .Callback<Visit, CancellationToken>((v, _) => added = v)
+            .Returns(Task.CompletedTask);
+
+        var result = await _sut.CreateAsync(
+            new CreateVisitRequest { ClientId = client.Id, PlannedAt = DateTime.UtcNow },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        added!.Status.Should().Be(VisitStatus.Planned);
+        added.CheckinAt.Should().BeNull();
+    }
+
     // --- GetById ---
 
     [Fact]

@@ -53,6 +53,20 @@ public class VisitService
         // is enforced at check-in time, not at creation. A supervisor can
         // queue future Planned visits while the vendor has one in progress.
 
+        var isAtomicCheckIn = request.CheckInLat.HasValue
+                              && request.CheckInLng.HasValue
+                              && request.CheckinAt.HasValue;
+
+        // Atomic create+check-in needs the HARD "one InProgress per vendor"
+        // rule applied here, since the visit goes straight to InProgress and
+        // the dedicated CheckInAsync path will never run for it.
+        if (isAtomicCheckIn
+            && await _visits.HasInProgressForVendorAsync(vendorId, ct))
+        {
+            return ServiceResult<VisitResponse>.Fail(
+                "Tenés una visita en curso. Termínala antes de iniciar otra.");
+        }
+
         var visit = new Visit
         {
             ClientId = request.ClientId,
@@ -66,6 +80,23 @@ public class VisitService
             CreatedBy = currentUserId,
             UpdatedBy = currentUserId
         };
+
+        if (isAtomicCheckIn)
+        {
+            visit.Status = VisitStatus.InProgress;
+            visit.CheckInLat = request.CheckInLat!.Value;
+            visit.CheckInLng = request.CheckInLng!.Value;
+            visit.CheckinAt = request.CheckinAt!.Value;
+            if (client.Lat is double cLat && client.Lng is double cLng)
+            {
+                var (within, distance) = _geofence.Compute(
+                    cLat, cLng,
+                    request.CheckInLat!.Value, request.CheckInLng!.Value,
+                    GeofenceThresholdMeters);
+                visit.IsOutOfRange = !within;
+                visit.OutOfRangeMeters = distance;
+            }
+        }
 
         await _visits.AddAsync(visit, ct);
         return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
