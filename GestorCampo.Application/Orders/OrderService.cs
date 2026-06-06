@@ -52,7 +52,6 @@ public class OrderService
         // Draft/Sent and lands as Approved. Offline-created drafts stay as
         // Draft locally on the device until the outbox drains, at which point
         // this same code path approves them.
-        var now = DateTime.UtcNow;
         var order = new Order
         {
             ClientId = request.ClientId,
@@ -60,8 +59,13 @@ public class OrderService
             VendorId = currentUserId,
             Vendor = null!,
             VisitId = request.VisitId,
-            Status = OrderStatus.Approved,
-            ApprovedAt = now,
+            // New orders start as Draft so the vendor can iterate on lines /
+            // quantities (online or offline) until they explicitly hit Send,
+            // which transitions Draft -> Approved (see SendAsync). Without
+            // this, an offline edit on a fresh order races against the
+            // server's auto-Approved state and the PUT lands in conflict
+            // with 409 "Solo se pueden editar órdenes en borrador".
+            Status = OrderStatus.Draft,
             Lines = lines,
             CreatedBy = currentUserId,
             UpdatedBy = currentUserId
@@ -220,7 +224,10 @@ public class OrderService
         if (!HasAccess(order, currentUserId, currentRole))
             return ServiceResult.Fail("No tiene acceso a esta orden");
 
-        if (order.Status != OrderStatus.Draft)
+        // SuperAdmin can delete any status (cleanup / mistake recovery).
+        // Everyone else is limited to Draft so an approved/sent order can't
+        // be silently wiped by the vendor that created it.
+        if (currentRole != UserRole.SuperAdmin && order.Status != OrderStatus.Draft)
             return ServiceResult.Fail("Solo se pueden eliminar órdenes en borrador");
 
         order.DeletedAt = DateTime.UtcNow;
@@ -229,6 +236,20 @@ public class OrderService
         order.UpdatedBy = currentUserId;
         await _orders.UpdateAsync(order, ct);
         return ServiceResult.Ok();
+    }
+
+    public async Task<ServiceResult<BulkDeleteResult>> BulkDeleteAsync(
+        IReadOnlyCollection<Guid> ids, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
+    {
+        var deleted = new List<Guid>();
+        var failed = new List<BulkDeleteFailure>();
+        foreach (var id in ids.Distinct())
+        {
+            var r = await DeleteAsync(id, currentUserId, currentRole, ct);
+            if (r.Succeeded) deleted.Add(id);
+            else failed.Add(new BulkDeleteFailure(id, r.Error ?? "Error desconocido"));
+        }
+        return ServiceResult<BulkDeleteResult>.Ok(new BulkDeleteResult(deleted, failed));
     }
 
     public async Task<ServiceResult<OrderResponse>> DeliverAsync(

@@ -108,8 +108,8 @@ public class OrderServiceTests
 
         result.Succeeded.Should().BeTrue();
         result.Data!.VendorId.Should().Be(currentUserId);
-        result.Data.Status.Should().Be(OrderStatus.Approved);
-        result.Data.ApprovedAt.Should().NotBeNull();
+        result.Data.Status.Should().Be(OrderStatus.Draft);
+        result.Data.ApprovedAt.Should().BeNull();
         result.Data.Lines.Should().HaveCount(1);
         _orderRepo.Verify(r => r.AddAsync(It.IsAny<Order>(), default), Times.Once);
     }

@@ -153,6 +153,16 @@ public class OrdersController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("bulk-delete")]
+    [ProducesResponseType(typeof(BulkDeleteResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> BulkDelete([FromBody] BulkDeleteOrdersRequest request, CancellationToken ct)
+    {
+        if (request?.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "Debe enviar al menos un id" });
+        var result = await _orders.BulkDeleteAsync(request.Ids, CurrentUserId, CurrentRole, ct);
+        return Ok(result.Data);
+    }
+
     [HttpPost("{id:guid}/deliver")]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
