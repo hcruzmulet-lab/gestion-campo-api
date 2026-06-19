@@ -145,6 +145,13 @@ public class VisitService
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
         if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
+
+        // Idempotent replay: a lost-ACK retry of a check-in that already landed
+        // must succeed (not 409). If THIS visit is already in progress, return
+        // its persisted state unchanged. Runs BEFORE HasInProgressForVendor so a
+        // same-visit reentry never trips the "one in progress" rule against itself.
+        if (visit.Status == VisitStatus.InProgress)
+            return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
         if (visit.Status != VisitStatus.Planned)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-in en visitas planificadas");
 

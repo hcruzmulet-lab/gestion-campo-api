@@ -350,6 +350,22 @@ public class VisitServiceTests
         _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 
+    [Fact]
+    public async Task CheckIn_AlreadyInProgress_ReturnsOk_WithoutReapplyingOrVendorRule()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.InProgress);
+        visit.CheckInLat = -1.0; visit.CheckInLng = -2.0;
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.CheckInAsync(
+            visit.Id, new CheckInRequest { Lat = -9.9, Lng = -9.9 }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.CheckInLat.Should().Be(-1.0); // retry payload ignored — persisted data kept
+        _visitRepo.Verify(r => r.HasInProgressForVendorAsync(It.IsAny<Guid>(), default), Times.Never);
+    }
+
     // --- CheckOut ---
 
     [Fact]
