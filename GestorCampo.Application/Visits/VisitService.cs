@@ -228,6 +228,10 @@ public class VisitService
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
         if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
+        // Idempotent replay: re-marking an already-not-completed visit returns
+        // its persisted state instead of 409 (lost-ACK retry safety).
+        if (visit.Status == VisitStatus.NotCompleted)
+            return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
         if (visit.Status != VisitStatus.Planned && visit.Status != VisitStatus.InProgress)
             return ServiceResult<VisitResponse>.Fail(
                 "Solo se puede marcar como no realizada una visita en estado planificada o en curso");

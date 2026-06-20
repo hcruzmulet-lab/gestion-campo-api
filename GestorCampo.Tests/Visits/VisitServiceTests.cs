@@ -651,4 +651,19 @@ public class VisitServiceTests
                 v.NotCompletedReasonNote == "Cliente avisó por WhatsApp"),
             default), Times.Once);
     }
+
+    [Fact]
+    public async Task MarkNotCompleted_AlreadyNotCompleted_ReturnsOk()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.NotCompleted);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.ClientClosed },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+    }
 }
