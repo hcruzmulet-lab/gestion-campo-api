@@ -363,6 +363,8 @@ public class VisitServiceTests
 
         result.Succeeded.Should().BeTrue();
         visit.CheckInLat.Should().Be(-1.0); // retry payload ignored — persisted data kept
+        visit.CheckInLng.Should().Be(-2.0);
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
         _visitRepo.Verify(r => r.HasInProgressForVendorAsync(It.IsAny<Guid>(), default), Times.Never);
     }
 
@@ -487,6 +489,8 @@ public class VisitServiceTests
 
         result.Succeeded.Should().BeTrue();
         visit.CheckOutLat.Should().Be(-5.0); // unchanged
+        visit.CheckOutLng.Should().Be(-6.0);
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 
     // --- Delete ---
@@ -665,5 +669,6 @@ public class VisitServiceTests
             vendorId, UserRole.Vendor);
 
         result.Succeeded.Should().BeTrue();
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 }
