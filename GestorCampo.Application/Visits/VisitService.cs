@@ -186,6 +186,11 @@ public class VisitService
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
         if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
+
+        // Idempotent replay: re-check-out of an already-completed visit returns
+        // its persisted state instead of 409 (lost-ACK retry safety).
+        if (visit.Status == VisitStatus.Completed)
+            return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
         if (visit.Status != VisitStatus.InProgress)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-out en visitas en curso");
 

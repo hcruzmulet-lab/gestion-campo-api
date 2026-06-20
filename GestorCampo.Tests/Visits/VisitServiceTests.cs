@@ -474,6 +474,21 @@ public class VisitServiceTests
         visit.CheckOutLng.Should().Be(-58.4);
     }
 
+    [Fact]
+    public async Task CheckOut_AlreadyCompleted_ReturnsOk_WithoutReapplying()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        visit.CheckOutLat = -5.0; visit.CheckOutLng = -6.0;
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.CheckOutAsync(
+            visit.Id, new CheckOutRequest { Lat = -9.9, Lng = -9.9 }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.CheckOutLat.Should().Be(-5.0); // unchanged
+    }
+
     // --- Delete ---
 
     [Fact]
