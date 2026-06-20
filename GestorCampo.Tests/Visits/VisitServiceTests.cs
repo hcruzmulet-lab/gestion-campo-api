@@ -493,6 +493,22 @@ public class VisitServiceTests
         _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 
+    // --- Update ---
+
+    [Fact]
+    public async Task Update_NotesOnCompletedVisit_Succeeds()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.UpdateAsync(
+            visit.Id, new UpdateVisitRequest { Notes = "post-cierre" }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.Notes.Should().Be("post-cierre");
+    }
+
     // --- Delete ---
 
     [Fact]
