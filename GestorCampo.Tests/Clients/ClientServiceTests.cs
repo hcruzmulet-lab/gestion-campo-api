@@ -283,6 +283,42 @@ public class ClientServiceTests
     }
 
     [Fact]
+    public async Task Create_DuplicateTaxId_Supervisor_VendorOutsideTeam_ReturnsFail()
+    {
+        // Regression: before the authz-before-dup-check fix, a Supervisor could supply
+        // a TaxId owned by a vendor outside their team and get that client's data back.
+        var supervisorId = Guid.NewGuid();
+        var vendorId = Guid.NewGuid();          // vendor on a DIFFERENT supervisor's team
+        var otherSupervisorId = Guid.NewGuid(); // the vendor's actual supervisor
+
+        var existing = BuildClient(assignedVendorId: vendorId);
+        existing.TaxId = "0912345678001";
+
+        var vendor = new User
+        {
+            Id = vendorId, Name = "V", Email = "v@t.com", PasswordHash = "h",
+            Role = UserRole.Vendor,
+            SupervisorId = otherSupervisorId // NOT the requesting supervisor
+        };
+
+        _clientRepo.Setup(r => r.TaxIdExistsAsync("0912345678001", default)).ReturnsAsync(true);
+        _clientRepo.Setup(r => r.GetByTaxIdAsync("0912345678001", default)).ReturnsAsync(existing);
+        _userRepo.Setup(r => r.GetByIdAsync(vendorId, default)).ReturnsAsync(vendor);
+
+        var result = await _sut.CreateAsync(
+            new CreateClientRequest
+            {
+                TaxId = "0912345678001", Name = "Retry", Address = "B", Phone = "C", Email = "d@e.com",
+                AssignedVendorId = vendorId
+            },
+            supervisorId, UserRole.Supervisor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("equipo");
+        _clientRepo.Verify(r => r.AddAsync(It.IsAny<Client>(), default), Times.Never);
+    }
+
+    [Fact]
     public async Task Delete_NotFound_ReturnsFail()
     {
         _clientRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), default)).ReturnsAsync((Client?)null);

@@ -92,6 +92,13 @@ public class IdempotencyMiddleware
         }
         finally
         {
+            // Always flush the buffered body back to the original stream, even if
+            // _next() throws. The common early-throw case (e.g. auth filter) writes
+            // nothing to the buffer, so the upstream exception handler receives an
+            // empty flush and is unaffected. If _next() wrote a partial body before
+            // throwing, that partial content is still forwarded — correct behaviour
+            // since the exception will propagate and the error middleware will
+            // overwrite the response anyway.
             buffer.Position = 0;
             await buffer.CopyToAsync(originalBody);
             context.Response.Body = originalBody;

@@ -121,6 +121,46 @@ public class IdempotencyMiddlewareTests
     }
 
     [Fact]
+    public async Task Post_RedisReadThrows_SwallowsExceptionAndInvokesNextOnce()
+    {
+        // Redis read outage: StringGetAsync throws. Middleware must swallow the
+        // exception and still call next() exactly once so the request proceeds.
+        var userId = Guid.NewGuid().ToString();
+        var ctx = BuildContext("POST", "temp-outage", userId);
+        _db.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ThrowsAsync(new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Redis down"));
+
+        var calls = 0;
+        RequestDelegate next = c => { calls++; return Task.CompletedTask; };
+
+        var sut = new IdempotencyMiddleware(next, NullLogger<IdempotencyMiddleware>.Instance);
+        // Must not throw despite Redis being unavailable.
+        await sut.InvokeAsync(ctx, _redis.Object);
+
+        calls.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Post_NoSubClaim_PassesThrough_NeverTouchesRedis()
+    {
+        // An unauthenticated POST (no "sub" claim) must pass straight through without
+        // ever touching Redis — StringGetAsync and StringSetAsync must not be called.
+        var ctx = BuildContext("POST", "temp-nosub", userId: null); // no user identity
+
+        var calls = 0;
+        RequestDelegate next = c => { calls++; return Task.CompletedTask; };
+
+        var sut = new IdempotencyMiddleware(next, NullLogger<IdempotencyMiddleware>.Instance);
+        await sut.InvokeAsync(ctx, _redis.Object);
+
+        calls.Should().Be(1);
+        _db.Verify(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()), Times.Never);
+        _db.Verify(d => d.StringSetAsync(
+            It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan?>(),
+            It.IsAny<When>(), It.IsAny<CommandFlags>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Post_NonSuccessResponse_IsNotCached()
     {
         var userId = Guid.NewGuid().ToString();
