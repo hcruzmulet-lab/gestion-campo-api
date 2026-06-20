@@ -20,15 +20,26 @@ public class ClientService
     public async Task<ServiceResult<ClientResponse>> CreateAsync(
         CreateClientRequest request, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
-        if (await _clients.TaxIdExistsAsync(request.TaxId, ct))
-            return ServiceResult<ClientResponse>.Fail("El RUC/cédula ya está registrado");
-
         // Vendors can only create clients assigned to themselves. The DTO field
         // is ignored / overwritten so the mobile client doesn't need to know
         // about RBAC.
         var assignedVendorId = currentRole == UserRole.Vendor
             ? currentUserId
             : request.AssignedVendorId;
+
+        if (await _clients.TaxIdExistsAsync(request.TaxId, ct))
+        {
+            // Natural idempotency for the lost-ACK retry case: if the same vendor
+            // would own a client that already exists with this TaxId, return the
+            // existing one so the mobile outbox can reconcile its tempId instead
+            // of orphaning it on a 409. A TaxId owned by a DIFFERENT vendor must
+            // still fail (don't leak another vendor's client).
+            var existing = await _clients.GetByTaxIdAsync(request.TaxId, ct);
+            if (existing != null && existing.AssignedVendorId == assignedVendorId)
+                return ServiceResult<ClientResponse>.Ok(ToResponse(existing));
+
+            return ServiceResult<ClientResponse>.Fail("El RUC/cédula ya está registrado");
+        }
 
         if (assignedVendorId.HasValue)
         {

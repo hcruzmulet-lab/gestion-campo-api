@@ -55,6 +55,41 @@ public class ClientServiceTests
     }
 
     [Fact]
+    public async Task Create_DuplicateTaxId_SameVendor_ReturnsExistingClient()
+    {
+        var vendorId = Guid.NewGuid();
+        var existing = BuildClient(assignedVendorId: vendorId);
+        existing.TaxId = "0912345678001";
+        _clientRepo.Setup(r => r.TaxIdExistsAsync("0912345678001", default)).ReturnsAsync(true);
+        _clientRepo.Setup(r => r.GetByTaxIdAsync("0912345678001", default)).ReturnsAsync(existing);
+
+        var result = await _sut.CreateAsync(
+            new CreateClientRequest { TaxId = "0912345678001", Name = "Retry", Address = "B", Phone = "C", Email = "d@e.com" },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        result.Data!.Id.Should().Be(existing.Id);
+        _clientRepo.Verify(r => r.AddAsync(It.IsAny<Client>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_DuplicateTaxId_DifferentVendor_ReturnsFail()
+    {
+        var existing = BuildClient(assignedVendorId: Guid.NewGuid()); // belongs to another vendor
+        existing.TaxId = "0912345678001";
+        _clientRepo.Setup(r => r.TaxIdExistsAsync("0912345678001", default)).ReturnsAsync(true);
+        _clientRepo.Setup(r => r.GetByTaxIdAsync("0912345678001", default)).ReturnsAsync(existing);
+
+        var result = await _sut.CreateAsync(
+            new CreateClientRequest { TaxId = "0912345678001", Name = "Retry", Address = "B", Phone = "C", Email = "d@e.com" },
+            Guid.NewGuid(), UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("RUC");
+        _clientRepo.Verify(r => r.AddAsync(It.IsAny<Client>(), default), Times.Never);
+    }
+
+    [Fact]
     public async Task Create_InvalidVendor_ReturnsFail()
     {
         var vendorId = Guid.NewGuid();

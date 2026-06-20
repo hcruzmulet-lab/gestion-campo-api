@@ -20,6 +20,11 @@ public class ClientRepository : IClientRepository
             .Include(c => c.AssignedVendor)
             .FirstOrDefaultAsync(c => c.ExternalId == externalId, ct);
 
+    public Task<Client?> GetByTaxIdAsync(string taxId, CancellationToken ct = default) =>
+        _db.Clients
+            .Include(c => c.AssignedVendor)
+            .FirstOrDefaultAsync(c => c.TaxId == taxId, ct);
+
     public Task<bool> TaxIdExistsAsync(string taxId, CancellationToken ct = default) =>
         _db.Clients.AnyAsync(c => c.TaxId == taxId, ct);
 
