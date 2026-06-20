@@ -350,6 +350,38 @@ public class VisitServiceTests
         _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 
+    [Fact]
+    public async Task CheckIn_OnCompletedVisit_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.CheckInAsync(
+            visit.Id, new CheckInRequest { Lat = -0.23, Lng = -78.5 }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task CheckIn_AlreadyInProgress_ReturnsOk_WithoutReapplyingOrVendorRule()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.InProgress);
+        visit.CheckInLat = -1.0; visit.CheckInLng = -2.0;
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.CheckInAsync(
+            visit.Id, new CheckInRequest { Lat = -9.9, Lng = -9.9 }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.CheckInLat.Should().Be(-1.0); // retry payload ignored — persisted data kept
+        visit.CheckInLng.Should().Be(-2.0);
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
+        _visitRepo.Verify(r => r.HasInProgressForVendorAsync(It.IsAny<Guid>(), default), Times.Never);
+    }
+
     // --- CheckOut ---
 
     [Fact]
@@ -456,6 +488,53 @@ public class VisitServiceTests
         visit.CheckOutAt.Should().NotBeNull();
         visit.CheckOutLat.Should().Be(-34.6);
         visit.CheckOutLng.Should().Be(-58.4);
+    }
+
+    [Fact]
+    public async Task CheckOut_AlreadyCompleted_ReturnsOk_WithoutReapplying()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        visit.CheckOutLat = -5.0; visit.CheckOutLng = -6.0;
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.CheckOutAsync(
+            visit.Id, new CheckOutRequest { Lat = -9.9, Lng = -9.9 }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.CheckOutLat.Should().Be(-5.0); // unchanged
+        visit.CheckOutLng.Should().Be(-6.0);
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
+    }
+
+    // --- Update ---
+
+    [Fact]
+    public async Task Update_NotesOnCompletedVisit_Succeeds()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.UpdateAsync(
+            visit.Id, new UpdateVisitRequest { Notes = "post-cierre" }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.Notes.Should().Be("post-cierre");
+    }
+
+    [Fact]
+    public async Task Update_NotesOnNotCompletedVisit_Succeeds()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.NotCompleted);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.UpdateAsync(
+            visit.Id, new UpdateVisitRequest { Notes = "nota post-no-realizada" }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.Notes.Should().Be("nota post-no-realizada");
     }
 
     // --- Delete ---
@@ -619,5 +698,37 @@ public class VisitServiceTests
                 v.NotCompletedReason == VisitNotCompletedReason.Other &&
                 v.NotCompletedReasonNote == "Cliente avisó por WhatsApp"),
             default), Times.Once);
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_OnCompletedVisit_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.ClientClosed },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_AlreadyNotCompleted_ReturnsOk()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.NotCompleted);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.ClientClosed },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 }

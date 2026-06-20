@@ -145,6 +145,13 @@ public class VisitService
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
         if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
+
+        // Idempotent replay: a lost-ACK retry of a check-in that already landed
+        // must succeed (not 409). If THIS visit is already in progress, return
+        // its persisted state unchanged. Runs BEFORE HasInProgressForVendor so a
+        // same-visit reentry never trips the "one in progress" rule against itself.
+        if (visit.Status == VisitStatus.InProgress)
+            return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
         if (visit.Status != VisitStatus.Planned)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-in en visitas planificadas");
 
@@ -179,6 +186,11 @@ public class VisitService
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
         if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
+
+        // Idempotent replay: re-check-out of an already-completed visit returns
+        // its persisted state instead of 409 (lost-ACK retry safety).
+        if (visit.Status == VisitStatus.Completed)
+            return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
         if (visit.Status != VisitStatus.InProgress)
             return ServiceResult<VisitResponse>.Fail("Solo se puede check-out en visitas en curso");
 
@@ -200,8 +212,15 @@ public class VisitService
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
         if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
-        if (visit.Status != VisitStatus.InProgress && visit.Status != VisitStatus.Planned)
-            return ServiceResult<VisitResponse>.Fail("Solo se puede actualizar visitas planificadas o en curso");
+        // Notes are a full-replace idempotent write; allow them on completed
+        // and not-completed visits too so a queued notes save that drains after
+        // check-out or mark-not-completed (FIFO edge) still lands instead of 409-ing.
+        if (visit.Status != VisitStatus.InProgress
+            && visit.Status != VisitStatus.Planned
+            && visit.Status != VisitStatus.Completed
+            && visit.Status != VisitStatus.NotCompleted)
+            return ServiceResult<VisitResponse>.Fail(
+                "Solo se puede actualizar visitas planificadas, en curso, completadas o no realizadas");
 
         if (req.Notes != null) visit.Notes = req.Notes;
         visit.UpdatedBy = currentUserId;
@@ -216,6 +235,10 @@ public class VisitService
         if (visit == null) return ServiceResult<VisitResponse>.Fail("Visita no encontrada");
         if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
+        // Idempotent replay: re-marking an already-not-completed visit returns
+        // its persisted state instead of 409 (lost-ACK retry safety).
+        if (visit.Status == VisitStatus.NotCompleted)
+            return ServiceResult<VisitResponse>.Ok(ToResponse(visit));
         if (visit.Status != VisitStatus.Planned && visit.Status != VisitStatus.InProgress)
             return ServiceResult<VisitResponse>.Fail(
                 "Solo se puede marcar como no realizada una visita en estado planificada o en curso");
