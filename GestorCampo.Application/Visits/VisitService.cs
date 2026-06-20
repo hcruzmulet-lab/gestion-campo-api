@@ -213,13 +213,14 @@ public class VisitService
         if (!HasAccess(visit, currentUserId, role))
             return ServiceResult<VisitResponse>.Fail("No tiene acceso a esta visita");
         // Notes are a full-replace idempotent write; allow them on completed
-        // visits too so a queued notes save that drains after check-out (FIFO
-        // edge) still lands instead of 409-ing.
+        // and not-completed visits too so a queued notes save that drains after
+        // check-out or mark-not-completed (FIFO edge) still lands instead of 409-ing.
         if (visit.Status != VisitStatus.InProgress
             && visit.Status != VisitStatus.Planned
-            && visit.Status != VisitStatus.Completed)
+            && visit.Status != VisitStatus.Completed
+            && visit.Status != VisitStatus.NotCompleted)
             return ServiceResult<VisitResponse>.Fail(
-                "Solo se puede actualizar visitas planificadas, en curso o completadas");
+                "Solo se puede actualizar visitas planificadas, en curso, completadas o no realizadas");
 
         if (req.Notes != null) visit.Notes = req.Notes;
         visit.UpdatedBy = currentUserId;

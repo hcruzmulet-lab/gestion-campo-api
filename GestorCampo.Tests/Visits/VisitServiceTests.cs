@@ -351,6 +351,20 @@ public class VisitServiceTests
     }
 
     [Fact]
+    public async Task CheckIn_OnCompletedVisit_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.CheckInAsync(
+            visit.Id, new CheckInRequest { Lat = -0.23, Lng = -78.5 }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
+    }
+
+    [Fact]
     public async Task CheckIn_AlreadyInProgress_ReturnsOk_WithoutReapplyingOrVendorRule()
     {
         var vendorId = Guid.NewGuid();
@@ -507,6 +521,20 @@ public class VisitServiceTests
 
         result.Succeeded.Should().BeTrue();
         visit.Notes.Should().Be("post-cierre");
+    }
+
+    [Fact]
+    public async Task Update_NotesOnNotCompletedVisit_Succeeds()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.NotCompleted);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.UpdateAsync(
+            visit.Id, new UpdateVisitRequest { Notes = "nota post-no-realizada" }, vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeTrue();
+        visit.Notes.Should().Be("nota post-no-realizada");
     }
 
     // --- Delete ---
@@ -670,6 +698,22 @@ public class VisitServiceTests
                 v.NotCompletedReason == VisitNotCompletedReason.Other &&
                 v.NotCompletedReasonNote == "Cliente avisó por WhatsApp"),
             default), Times.Once);
+    }
+
+    [Fact]
+    public async Task MarkNotCompleted_OnCompletedVisit_Fails()
+    {
+        var vendorId = Guid.NewGuid();
+        var visit = BuildVisit(vendorId, VisitStatus.Completed);
+        _visitRepo.Setup(r => r.GetByIdAsync(visit.Id, default)).ReturnsAsync(visit);
+
+        var result = await _sut.MarkNotCompletedAsync(
+            visit.Id,
+            new MarkNotCompletedRequest { Reason = VisitNotCompletedReason.ClientClosed },
+            vendorId, UserRole.Vendor);
+
+        result.Succeeded.Should().BeFalse();
+        _visitRepo.Verify(r => r.UpdateAsync(It.IsAny<Visit>(), default), Times.Never);
     }
 
     [Fact]
