@@ -215,6 +215,11 @@ app.UseMiddleware<AuditMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Idempotency must run AFTER auth so context.User is populated (the cache key
+// is scoped per-user) and BEFORE endpoint mapping so it can short-circuit
+// replayed create POSTs.
+app.UseMiddleware<IdempotencyMiddleware>();
+
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     Authorization = new[] { new Hangfire.Dashboard.LocalRequestsOnlyAuthorizationFilter() }
