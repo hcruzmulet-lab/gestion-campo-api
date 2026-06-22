@@ -30,12 +30,14 @@ public class OrderService
             return ServiceResult<OrderResponse>.Fail("Cliente no encontrado");
 
         var lines = new List<OrderLine>();
+        var stockLines = new List<(Product product, int quantity)>();
         foreach (var lineReq in request.Lines)
         {
             var product = await _products.GetByIdAsync(lineReq.ProductId, ct);
             if (product == null)
                 return ServiceResult<OrderResponse>.Fail($"Producto no encontrado: {lineReq.ProductId}");
 
+            stockLines.Add((product, lineReq.Quantity));
             lines.Add(new OrderLine
             {
                 ProductId = lineReq.ProductId,
@@ -46,12 +48,21 @@ public class OrderService
             });
         }
 
-        // Auto-approve at create time. The mobile vendor flow no longer goes
-        // through a Supervisor approval queue: if the create request reached
-        // the API, the vendor is online by definition, so the order skips
-        // Draft/Sent and lands as Approved. Offline-created drafts stay as
-        // Draft locally on the device until the outbox drains, at which point
-        // this same code path approves them.
+        // Validate + decrement stock before the order lands. Insufficient
+        // stock fails the whole create (nothing is persisted). Offline this
+        // surfaces as a 409 conflict in the device's sync_failures.
+        var stockError = ApplyStock(stockLines);
+        if (stockError != null)
+            return ServiceResult<OrderResponse>.Fail(stockError);
+
+        // Auto-approve at create time. The mobile vendor flow builds every
+        // line locally and sends them in a single POST, so there is no
+        // create-then-edit step to protect: the order lands directly as
+        // Approved ("activo"). Offline-created orders show Approved
+        // optimistically and the API confirms that state when the outbox
+        // drains. Stock is decremented here, atomically with the order write
+        // (the decremented Product entities are tracked by the same DbContext
+        // that AddAsync flushes).
         var order = new Order
         {
             ClientId = request.ClientId,
@@ -59,13 +70,8 @@ public class OrderService
             VendorId = currentUserId,
             Vendor = null!,
             VisitId = request.VisitId,
-            // New orders start as Draft so the vendor can iterate on lines /
-            // quantities (online or offline) until they explicitly hit Send,
-            // which transitions Draft -> Approved (see SendAsync). Without
-            // this, an offline edit on a fresh order races against the
-            // server's auto-Approved state and the PUT lands in conflict
-            // with 409 "Solo se pueden editar órdenes en borrador".
-            Status = OrderStatus.Draft,
+            Status = OrderStatus.Approved,
+            ApprovedAt = DateTime.UtcNow,
             Lines = lines,
             CreatedBy = currentUserId,
             UpdatedBy = currentUserId
@@ -164,9 +170,14 @@ public class OrderService
         if (order.Status != OrderStatus.Draft)
             return ServiceResult<OrderResponse>.Fail("Solo se pueden enviar órdenes en borrador");
 
-        // No Supervisor approval step anymore — sending a draft approves it
-        // directly. The Sent state is reserved for legacy data; new orders
-        // never enter it.
+        // Sending a (legacy) draft approves it directly — and is the point at
+        // which its stock is decremented, mirroring CreateAsync. New orders
+        // are auto-approved at create and never reach this path, so there is
+        // no risk of decrementing twice.
+        var stockError = ApplyStock(order.Lines.Select(l => (l.Product, l.Quantity)).ToList());
+        if (stockError != null)
+            return ServiceResult<OrderResponse>.Fail(stockError);
+
         order.Status = OrderStatus.Approved;
         order.ApprovedAt = DateTime.UtcNow;
         order.UpdatedBy = currentUserId;
@@ -270,6 +281,33 @@ public class OrderService
         order.UpdatedBy = currentUserId;
         await _orders.UpdateAsync(order, ct);
         return ServiceResult<OrderResponse>.Ok(ToResponse(order));
+    }
+
+    /// <summary>
+    /// Validates stock availability and decrements it for the given lines.
+    /// Quantities are aggregated per product so multiple lines of the same
+    /// product are checked against the single stock figure. Products with a
+    /// null Stock are "untracked" — skipped entirely (no validation, no
+    /// decrement). Returns an error message if any product is short (in which
+    /// case nothing is decremented), or null on success. Mutates the tracked
+    /// Product entities; the caller's repository save persists the changes.
+    /// </summary>
+    private static string? ApplyStock(List<(Product product, int quantity)> lines)
+    {
+        var perProduct = lines
+            .Where(l => l.product.Stock.HasValue)
+            .GroupBy(l => l.product.Id)
+            .Select(g => (product: g.First().product, total: g.Sum(x => x.quantity)))
+            .ToList();
+
+        foreach (var (product, total) in perProduct)
+            if (product.Stock!.Value < total)
+                return $"Stock insuficiente para {product.Name}: disponible {product.Stock.Value}, solicitado {total}";
+
+        foreach (var (product, total) in perProduct)
+            product.Stock = product.Stock!.Value - total;
+
+        return null;
     }
 
     private static bool HasAccess(Order order, Guid currentUserId, UserRole role) => role switch
