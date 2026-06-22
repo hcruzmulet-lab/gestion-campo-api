@@ -24,7 +24,14 @@ public class S3FileStorage : IFileStorage
             Key = key,
             InputStream = content,
             ContentType = contentType,
-            AutoCloseStream = false
+            AutoCloseStream = false,
+            // Cloudflare R2 does not implement aws-chunked streaming
+            // (STREAMING-AWS4-HMAC-SHA256-PAYLOAD) nor the AWS SDK's default
+            // request checksums. Disable both so the PUT uses an UNSIGNED
+            // single-shot payload that R2 accepts. Harmless against MinIO/S3.
+            DisablePayloadSigning = true,
+            DisableDefaultChecksumValidation = true,
+            UseChunkEncoding = false
         };
         await _client.PutObjectAsync(put, ct);
         return key;
