@@ -20,9 +20,6 @@ public class ClientService
     public async Task<ServiceResult<ClientResponse>> CreateAsync(
         CreateClientRequest request, Guid currentUserId, UserRole currentRole, CancellationToken ct = default)
     {
-        if (await _clients.TaxIdExistsAsync(request.TaxId, ct))
-            return ServiceResult<ClientResponse>.Fail("El RUC/cédula ya está registrado");
-
         // Vendors can only create clients assigned to themselves. The DTO field
         // is ignored / overwritten so the mobile client doesn't need to know
         // about RBAC.
@@ -30,13 +27,33 @@ public class ClientService
             ? currentUserId
             : request.AssignedVendorId;
 
-        if (assignedVendorId.HasValue)
+        // Validate vendor existence and team access BEFORE the duplicate-TaxId check.
+        // This ensures the natural-idempotency early-return cannot be used to leak
+        // another vendor's client data to a Supervisor who has no access to that vendor.
+        // Vendor-role callers are skipped: the resolved assignedVendorId is already
+        // the authenticated user, so no additional lookup is needed.
+        if (assignedVendorId.HasValue && currentRole != UserRole.Vendor)
         {
             var vendor = await _users.GetByIdAsync(assignedVendorId.Value, ct);
             if (vendor == null || vendor.Role != UserRole.Vendor)
                 return ServiceResult<ClientResponse>.Fail("El vendedor asignado no es válido");
             if (currentRole == UserRole.Supervisor && vendor.SupervisorId != currentUserId)
                 return ServiceResult<ClientResponse>.Fail("Ese vendedor no pertenece a tu equipo");
+        }
+
+        if (await _clients.TaxIdExistsAsync(request.TaxId, ct))
+        {
+            // Natural idempotency for the lost-ACK retry case: if the same vendor
+            // would own a client that already exists with this TaxId, return the
+            // existing one so the mobile outbox can reconcile its tempId instead
+            // of orphaning it on a 409. A TaxId owned by a DIFFERENT vendor must
+            // still fail (don't leak another vendor's client). Access to the resolved
+            // vendor has already been confirmed above, so this path is now safe.
+            var existing = await _clients.GetByTaxIdAsync(request.TaxId, ct);
+            if (existing != null && existing.AssignedVendorId == assignedVendorId)
+                return ServiceResult<ClientResponse>.Ok(ToResponse(existing));
+
+            return ServiceResult<ClientResponse>.Fail("El RUC/cédula ya está registrado");
         }
 
         var client = new Client

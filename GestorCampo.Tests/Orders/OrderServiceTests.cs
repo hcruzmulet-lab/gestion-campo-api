@@ -108,10 +108,115 @@ public class OrderServiceTests
 
         result.Succeeded.Should().BeTrue();
         result.Data!.VendorId.Should().Be(currentUserId);
-        result.Data.Status.Should().Be(OrderStatus.Draft);
-        result.Data.ApprovedAt.Should().BeNull();
+        // Orders auto-approve at create — they land as "activo" (Approved),
+        // not Draft, with an approval timestamp.
+        result.Data.Status.Should().Be(OrderStatus.Approved);
+        result.Data.ApprovedAt.Should().NotBeNull();
         result.Data.Lines.Should().HaveCount(1);
         _orderRepo.Verify(r => r.AddAsync(It.IsAny<Order>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_DecrementsStock_WhenTracked()
+    {
+        var client = BuildClient();
+        var product = BuildProduct();
+        product.Stock = 10;
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+        _productRepo.Setup(r => r.GetByIdAsync(product.Id, default)).ReturnsAsync(product);
+
+        var result = await _sut.CreateAsync(
+            new CreateOrderRequest
+            {
+                ClientId = client.Id,
+                Lines = new List<CreateOrderLineRequest>
+                {
+                    new() { ProductId = product.Id, Quantity = 3, UnitPrice = 10.50m, Discount = 0m }
+                }
+            },
+            Guid.NewGuid());
+
+        result.Succeeded.Should().BeTrue();
+        product.Stock.Should().Be(7);
+        _orderRepo.Verify(r => r.AddAsync(It.IsAny<Order>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_InsufficientStock_FailsAndDoesNotPersist()
+    {
+        var client = BuildClient();
+        var product = BuildProduct();
+        product.Stock = 2;
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+        _productRepo.Setup(r => r.GetByIdAsync(product.Id, default)).ReturnsAsync(product);
+
+        var result = await _sut.CreateAsync(
+            new CreateOrderRequest
+            {
+                ClientId = client.Id,
+                Lines = new List<CreateOrderLineRequest>
+                {
+                    new() { ProductId = product.Id, Quantity = 5, UnitPrice = 10.50m, Discount = 0m }
+                }
+            },
+            Guid.NewGuid());
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("Stock insuficiente");
+        product.Stock.Should().Be(2); // unchanged
+        _orderRepo.Verify(r => r.AddAsync(It.IsAny<Order>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_NullStock_IsUntracked_NoDecrement()
+    {
+        var client = BuildClient();
+        var product = BuildProduct(); // Stock defaults to null
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+        _productRepo.Setup(r => r.GetByIdAsync(product.Id, default)).ReturnsAsync(product);
+
+        var result = await _sut.CreateAsync(
+            new CreateOrderRequest
+            {
+                ClientId = client.Id,
+                Lines = new List<CreateOrderLineRequest>
+                {
+                    new() { ProductId = product.Id, Quantity = 999, UnitPrice = 1m, Discount = 0m }
+                }
+            },
+            Guid.NewGuid());
+
+        result.Succeeded.Should().BeTrue();
+        product.Stock.Should().BeNull();
+        _orderRepo.Verify(r => r.AddAsync(It.IsAny<Order>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_SameProductMultipleLines_AggregatesStock()
+    {
+        var client = BuildClient();
+        var product = BuildProduct();
+        product.Stock = 5;
+        _clientRepo.Setup(r => r.GetByIdAsync(client.Id, default)).ReturnsAsync(client);
+        _productRepo.Setup(r => r.GetByIdAsync(product.Id, default)).ReturnsAsync(product);
+
+        // Two lines of the same product: 3 + 3 = 6 > 5 available.
+        var result = await _sut.CreateAsync(
+            new CreateOrderRequest
+            {
+                ClientId = client.Id,
+                Lines = new List<CreateOrderLineRequest>
+                {
+                    new() { ProductId = product.Id, Quantity = 3, UnitPrice = 10m, Discount = 0m },
+                    new() { ProductId = product.Id, Quantity = 3, UnitPrice = 10m, Discount = 0m }
+                }
+            },
+            Guid.NewGuid());
+
+        result.Succeeded.Should().BeFalse();
+        result.Error.Should().Contain("Stock insuficiente");
+        product.Stock.Should().Be(5); // unchanged
+        _orderRepo.Verify(r => r.AddAsync(It.IsAny<Order>(), default), Times.Never);
     }
 
     // --- GetById ---
